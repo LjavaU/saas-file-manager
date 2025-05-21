@@ -1,0 +1,13 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: tpt-recommend
+
+sup:
+  swagger:
+    api-base-package: "com.supcon"
+    title: "tpt-recommend"
+    description: "TptUserposApplication"
+    version: "1.0.0-SNAPSHOT"

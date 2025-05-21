@@ -1,0 +1,12 @@
+include:
+  - project: '5tpd/private/cicd/glab-ci-template'
+    ref: master
+    file: '/gitlab-ci-java-template.yml'
+
+variables:
+  MY_NS: gpt
+  MY_APP_LNAME: tpt-recommend-v1
+  MY_APP_SNAME: tpt-recommend
+  MY_APP_HTTP_PORT: 8080
+  MY_JAR_PKG_VER: 1.0.0-SNAPSHOT
+  ROOT_JAR_PATH: ./

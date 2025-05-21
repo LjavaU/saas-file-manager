@@ -1,0 +1,6 @@
+FROM harbor.supcon5t.com/devops/openjdk11:jre-sc5t-X64_ARCH
+USER 1001:1001
+ARG JAR_FILE=${ROOT_JAR_PATH}target/MY_APP_SNAME-MY_JAR_PKG_VER.jar
+WORKDIR /home/sc5trun
+ADD ${JAR_FILE} MY_APP_SNAME.jar
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=80.0", "-jar", "/home/sc5trun/MY_APP_SNAME.jar"]
