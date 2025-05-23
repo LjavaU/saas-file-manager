@@ -1,2 +1,27 @@
 # 该配置文件仅存放本地开发环境的配置项，默认情况下在线上环境会失效
 # 通常来说，线上环境需要全量复制此配置文件内的配置节并进行调整
+sup:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://seak8sm1.supcon5t.com:31230/tpt_recommend?characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+    username: postgres
+    password: Supcon@1304
+  log:
+    addr: http://localhost:8080
+    remote:
+      enabled: false
+  tenant:
+    dt: 0
+    enabled: true
+    db.enabled: true
+minio:
+  endpoint: http://seak8sm1.supcon5t.com:30350
+  accessKey: admin
+  secretKey: Supcon1304
+  bucket: recommend  #桶
+
+mybatis-plus:
+  configuration:
+    #log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+    #打印SQL日志
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

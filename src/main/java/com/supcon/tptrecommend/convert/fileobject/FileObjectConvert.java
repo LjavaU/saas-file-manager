@@ -1,0 +1,29 @@
+package com.supcon.tptrecommend.convert.fileobject;
+
+import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
+import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.FileObjectUpdateReq;
+import com.supcon.tptrecommend.entity.FileObject;
+import org.mapstruct.Mapper;
+import org.mapstruct.factory.Mappers;
+
+/**
+ * <p>
+ * MinIO 文件元数据表转换器
+ * </p>
+ *
+ * @author luhao
+ * @version 1.0.0
+ * @date 2025-05-22
+ */
+@Mapper
+public interface FileObjectConvert {
+
+    FileObjectConvert INSTANCE = Mappers.getMapper(FileObjectConvert.class);
+
+    FileObject convert(FileObjectCreateReq fileObjectCreateReq);
+
+    FileObject convert(FileObjectUpdateReq fileObjectUpdateReq);
+
+    FileObjectResp convert(FileObject fileObject);
+}
