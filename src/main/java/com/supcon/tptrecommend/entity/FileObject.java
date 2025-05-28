@@ -25,7 +25,7 @@ public class FileObject extends BasicEntity<Long> {
     private static final long serialVersionUID = 1L;
 
     @ApiModelProperty(value = "用户 ID", example = "用户 ID")
-    private String userId;
+    private Long userId;
 
     @ApiModelProperty(value = "租户 ID", example = "租户 ID")
     private String tenantId;

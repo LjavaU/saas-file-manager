@@ -26,7 +26,7 @@ public class FileObjectResp extends BasicEntity<Long> {
     private String tenantId;
 
     @ApiModelProperty(value = "用户 ID", example = "用户 ID")
-    private String userId;
+    private Long userId;
 
     @ApiModelProperty(value = "用户 名称", example = "用户 名称")
     private String userName;

@@ -34,6 +34,9 @@ public class Question extends BasicEntity<Long>  implements Serializable {
     @TableField(fill = FieldFill.INSERT)
     private String tenantId;
 
+    @ApiModelProperty(value = "用户id")
+    private Long userId;
+
     @ApiModelProperty(value = "行业", example = "行业")
     private String industry;
 

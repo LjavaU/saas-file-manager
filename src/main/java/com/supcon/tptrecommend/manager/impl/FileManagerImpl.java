@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +67,7 @@ public class FileManagerImpl implements FileManager {
         }
         // 保存文件元数据 到数据库
         return fileObjectService.saveObj(FileObjectCreateReq.builder()
-            .userId(Objects.isNull(user.getId()) ? null : String.valueOf(user.getId()))
+            .userId(user.getId())
             .userName(user.getUsername())
             .objectName(objectKey)
             .originalName(originalFilename)
@@ -131,6 +131,9 @@ public class FileManagerImpl implements FileManager {
      */
     public IPage<FileObjectResp> selectPage(SupRequestBody<Map<String, String>> body) throws Exception {
         body.getData().put("userName", LoginUserUtils.getLoginUserInfo().getUsername());
+        Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id->{
+            body.getData().put("userId", String.valueOf( LoginUserUtils.getLoginUserInfo().getId()));
+        });
         return fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
     }
 }

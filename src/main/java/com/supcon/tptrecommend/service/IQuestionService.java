@@ -7,6 +7,7 @@ import com.supcon.tptrecommend.dto.question.QuestionUpdateReq;
 import com.supcon.tptrecommend.entity.Question;
 import com.supcon.tptrecommend.entity.excel.QuestionImportExcel;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 
 /**
@@ -61,5 +62,32 @@ public interface IQuestionService extends IBasicService<Question> {
      */
     boolean removeObjs(List<Long> ids);
 
-    void importData(List<QuestionImportExcel> sucData);
+
+
+    /**
+     * 用户问题导入
+     *
+     * @param sucData SUC 数据
+     * @author luhao
+     * @date 2025/05/27 15:32:53
+     */
+    void userQuesImport(List<QuestionImportExcel> sucData);
+
+    /**
+     * 非用户 问题 导入
+     *
+     * @param sucData SUC 数据
+     * @author luhao
+     * @date 2025/05/27 16:24:48
+     */
+    void nonUserQuesImport(List<QuestionImportExcel> sucData);
+
+    /**
+     * 模板下载
+     *
+     * @param response 响应
+     * @author luhao
+     * @date 2025/05/27 16:52:51
+     */
+    void templateDownload(HttpServletResponse response);
 }

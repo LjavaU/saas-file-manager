@@ -24,7 +24,7 @@ public class FileObjectCreateReq implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @ApiModelProperty(value = "用户 ID(最大64字符)", example = "用户 ID")
-    private String userId;
+    private Long userId;
 
     @ApiModelProperty(value = "用户 名称(最大64字符)", example = "用户 名称")
     private String userName;

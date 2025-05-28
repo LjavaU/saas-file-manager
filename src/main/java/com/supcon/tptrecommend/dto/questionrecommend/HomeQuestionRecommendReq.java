@@ -12,6 +12,12 @@ public class HomeQuestionRecommendReq implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @ApiModelProperty(value = "用户名称")
-    private String userName;
+    @ApiModelProperty(value = "行业")
+    private String industry;
+
+    @ApiModelProperty(value = "岗位")
+    private String post;
+
+    @ApiModelProperty(value = "装置")
+    private String device;
 }

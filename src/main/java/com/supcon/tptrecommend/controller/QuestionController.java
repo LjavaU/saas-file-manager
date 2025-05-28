@@ -9,7 +9,6 @@ import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.systemcomponent.excel.annotation.RequestExcel;
-import com.supcon.systemcomponent.excel.annotation.ResponseExcel;
 import com.supcon.systemcomponent.excel.entity.ExcelReadResult;
 import com.supcon.tptrecommend.convert.question.QuestionConvert;
 import com.supcon.tptrecommend.dto.question.QuestionCreateReq;
@@ -24,10 +23,10 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import springfox.documentation.annotations.ApiIgnore;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
-import java.util.Collections;
-import java.util.List;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -133,22 +132,34 @@ public class QuestionController extends BasicController {
     @GetMapping("templateDownload")
     @ApiOperation("导入模板下载")
     @ApiOperationSupport(order = 6, author = "zhaojun")
-    @ResponseExcel(filename = "question_template.xlsx", head = QuestionImportExcel.class)
     @SysServiceLog(moduleName = "问题主表-导入模板下载", operateType = OperateTypeEnum.LOG_TYPE_DEL)
-    public SupResult<List<QuestionImportExcel>> excelDownload() {
-        return data(Collections.emptyList());
+    public SupResult<Void> templateDownload(HttpServletResponse response) throws IOException {
+        questionService.templateDownload(response);
+       return SupResult.success();
     }
 
 
-    @PostMapping("import")
-    @ApiOperation("Excel导入")
+    @PostMapping("nonUserQuesImport")
+    @ApiOperation("非用户问题导入")
     @ApiOperationSupport(order = 7, author = "zhaojun")
     @SysServiceLog(moduleName = "二次位号管理-Excel导入", operateType = OperateTypeEnum.LOG_TYPE_ADD)
-    public SupResult<String> excelImport(@RequestExcel(isSaveErrorExcel = true) @ApiIgnore ExcelReadResult<QuestionImportExcel> excelReadResult) {
+    public SupResult<String> nonUserQuesImport(@RequestExcel(isSaveErrorExcel = true) @ApiIgnore ExcelReadResult<QuestionImportExcel> excelReadResult) {
         if (!excelReadResult.isSuccess()) {
             return SupResult.errorWithContent(excelReadResult.getFailFilePath(), "导入失败");
         }
-        questionService.importData(excelReadResult.getSucData());
+        questionService.nonUserQuesImport(excelReadResult.getSucData());
+        return SupResult.success();
+    }
+
+    @PostMapping("userQuesImport")
+    @ApiOperation("用户问题导入")
+    @ApiOperationSupport(order = 8, author = "zhaojun")
+    @SysServiceLog(moduleName = "二次位号管理-Excel导入", operateType = OperateTypeEnum.LOG_TYPE_ADD)
+    public SupResult<String> userQuesImport(@RequestExcel(isSaveErrorExcel = true) @ApiIgnore ExcelReadResult<QuestionImportExcel> excelReadResult) {
+        if (!excelReadResult.isSuccess()) {
+            return SupResult.errorWithContent(excelReadResult.getFailFilePath(), "导入失败");
+        }
+        questionService.userQuesImport(excelReadResult.getSucData());
         return SupResult.success();
     }
 
