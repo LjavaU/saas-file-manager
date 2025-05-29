@@ -14,15 +14,23 @@ import com.supcon.tptrecommend.common.utils.MinioUtils;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.service.IFileObjectService;
+import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
@@ -131,9 +139,35 @@ public class FileManagerImpl implements FileManager {
      */
     public IPage<FileObjectResp> selectPage(SupRequestBody<Map<String, String>> body) throws Exception {
         body.getData().put("userName", LoginUserUtils.getLoginUserInfo().getUsername());
-        Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id->{
-            body.getData().put("userId", String.valueOf( LoginUserUtils.getLoginUserInfo().getId()));
+        Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id -> {
+            body.getData().put("userId", String.valueOf(LoginUserUtils.getLoginUserInfo().getId()));
         });
         return fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
+    }
+
+    /**
+     * 获取单个文件流
+     *
+     * @param req      请求体
+     * @param response 响应
+     * @throws IOException io异常
+     * @author luhao
+     * @date 2025/05/29 17:24:04
+     */
+    @Override
+    public void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException {
+        String path = req.getPath();
+        InputStream inputStream = minioUtils.getFileBytes(bucket, path);
+        StatObjectResponse metadata = minioUtils.getMetadata(bucket, path);
+        response.setContentType(metadata.contentType());
+        String originFileName = path.substring(path.indexOf("_") + 1);
+        // 对中文文件名进行URL编码
+        String encodedFileName = URLEncoder.encode(originFileName, StandardCharsets.UTF_8.name()).replaceAll("\\+", "%20");
+        response.setHeader("Content-disposition", "inline;filename*=UTF-8''" + encodedFileName);
+        response.setContentLengthLong( metadata.size());
+        // 把文件流复制到响应输出流
+        IOUtils.copy(inputStream, response.getOutputStream());
+        response.flushBuffer();
+        inputStream.close();
     }
 }

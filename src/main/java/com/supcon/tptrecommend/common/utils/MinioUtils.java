@@ -149,8 +149,8 @@ public class MinioUtils {
                 .bucket(bucketName)
                 .object(objectName)
                 .build());
-        }catch (Exception e){
-            throw new ServerException("文件删除失败",e);
+        } catch (Exception e) {
+            throw new ServerException("文件删除失败", e);
         }
 
     }
@@ -199,5 +199,50 @@ public class MinioUtils {
         }
         return String.valueOf(stat.size());
     }
+
+    /**
+     * 获取文件字节
+     *
+     * @param bucketName 存储桶名称
+     * @param objectName 对象名称
+     * @return {@link InputStream }
+     * @author luhao
+     * @date 2025/05/29 16:16:21
+     */
+    public InputStream getFileBytes(String bucketName, String objectName) {
+        try {
+            return minioClient.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .build());
+        } catch (Exception e) {
+            throw new ServerException("文件获取失败", e);
+        }
+
+
+    }
+
+    /**
+     * 获取元数据
+     *
+     * @param bucketName 存储桶名称
+     * @param objectName 对象名称
+     * @return {@link StatObjectResponse }
+     * @author luhao
+     * @date 2025/05/29 16:23:58
+     */
+    public StatObjectResponse getMetadata(String bucketName, String objectName) {
+        try {
+            return  minioClient.statObject(
+                StatObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .build());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
 }

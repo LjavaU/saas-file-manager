@@ -8,6 +8,7 @@ import com.supcon.systembase.logapi.enums.OperateTypeEnum;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
 import com.supcon.tptrecommend.manager.FileManager;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -16,7 +17,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.io.IOException;
 import java.util.Map;
 
 @RestController
@@ -66,6 +69,15 @@ public class FileController extends BasicController {
     @SysServiceLog(moduleName = "文件管理-分页列表查询", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
     public SupResult<IPage<FileObjectResp>> queryPageList(@Valid @RequestBody SupRequestBody<Map<String, String>> body) throws Exception{
         return data(fileManager.selectPage(body));
+    }
+
+
+    @PostMapping("getOne")
+    @ApiOperation("获取单个文件流")
+    @ApiOperationSupport(order = 4, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public void getOne(@Valid @RequestBody SupRequestBody<SingleFileQueryReq> req, HttpServletResponse response) throws IOException {
+        fileManager.getOne(req.getData(),response);
     }
 
 
