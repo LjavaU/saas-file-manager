@@ -2,7 +2,6 @@ package com.supcon.tptrecommend.convert.fileobject;
 
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
-import com.supcon.tptrecommend.dto.fileobject.FileObjectUpdateReq;
 import com.supcon.tptrecommend.entity.FileObject;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
@@ -23,7 +22,6 @@ public interface FileObjectConvert {
 
     FileObject convert(FileObjectCreateReq fileObjectCreateReq);
 
-    FileObject convert(FileObjectUpdateReq fileObjectUpdateReq);
 
     FileObjectResp convert(FileObject fileObject);
 }
