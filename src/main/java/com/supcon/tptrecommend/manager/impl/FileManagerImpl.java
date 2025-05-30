@@ -148,26 +148,36 @@ public class FileManagerImpl implements FileManager {
     /**
      * 获取单个文件流
      *
-     * @param req      请求体
-     * @param response 响应
-     * @throws IOException io异常
+     * @param req      请求体，包含文件路径等信息
+     * @param response 响应对象，用于输出文件流
+     * @throws IOException 当文件读取或网络传输发生错误时抛出此异常
      * @author luhao
      * @date 2025/05/29 17:24:04
      */
     @Override
     public void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException {
+        // 获取文件路径
         String path = req.getPath();
+        // 从MinIO中获取文件字节流
         InputStream inputStream = minioUtils.getFileBytes(bucket, path);
+        // 获取文件元数据
         StatObjectResponse metadata = minioUtils.getMetadata(bucket, path);
+        // 设置响应内容类型为文件的Content-Type
         response.setContentType(metadata.contentType());
+        // 提取并编码文件名，用于响应头
         String originFileName = path.substring(path.indexOf("_") + 1);
         // 对中文文件名进行URL编码
         String encodedFileName = URLEncoder.encode(originFileName, StandardCharsets.UTF_8.name()).replaceAll("\\+", "%20");
+        // 设置响应头，指定文件以行内形式打开，并设置文件名
         response.setHeader("Content-disposition", "inline;filename*=UTF-8''" + encodedFileName);
-        response.setContentLengthLong( metadata.size());
+        // 设置响应内容长度
+        response.setContentLengthLong(metadata.size());
         // 把文件流复制到响应输出流
         IOUtils.copy(inputStream, response.getOutputStream());
+        // 刷新响应缓冲区，确保文件流发送
         response.flushBuffer();
+        // 关闭输入流，释放资源
         inputStream.close();
     }
+
 }
