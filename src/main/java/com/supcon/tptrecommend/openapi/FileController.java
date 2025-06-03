@@ -38,6 +38,7 @@ public class FileController extends BasicController {
      * @author luhao
      * @date 2025/05/22 13:52:19
      */
+    @CrossOrigin
     @PostMapping(value = "/upload")
     @ApiOperation("上传文件")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
