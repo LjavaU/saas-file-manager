@@ -14,10 +14,12 @@ public class LoginUserUtils {
      * @date 2025/05/22 16:29:27
      */
     public static LoginInfoUserDTO getLoginUserInfo() {
-        LoginInfoUserDTO user = new LoginInfoUserDTO();
         try {
             return LoginInfoUtil.getCurrentUser();
         } catch (SupException e) {
+            // 用于本地调试用
+            LoginInfoUserDTO user = new LoginInfoUserDTO();
+            user.setId(88888L);
             user.setUsername("defaultUser");
             return user;
         }

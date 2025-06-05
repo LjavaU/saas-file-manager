@@ -26,7 +26,6 @@ import springfox.documentation.annotations.ApiIgnore;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -133,7 +132,7 @@ public class QuestionController extends BasicController {
     @ApiOperation("导入模板下载")
     @ApiOperationSupport(order = 6, author = "zhaojun")
     @SysServiceLog(moduleName = "问题主表-导入模板下载", operateType = OperateTypeEnum.LOG_TYPE_DEL)
-    public SupResult<Void> templateDownload(HttpServletResponse response) throws IOException {
+    public SupResult<Void> templateDownload(HttpServletResponse response)  {
         questionService.templateDownload(response);
        return SupResult.success();
     }

@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.common.utils;
 
 import com.supcon.systemcommon.exception.ServerException;
 import io.minio.*;
+import io.minio.messages.DeleteObject;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -16,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -155,6 +157,39 @@ public class MinioUtils {
 
     }
 
+    /**
+     * 批量删除文件
+     *
+     * @param bucketName  存储桶名称
+     * @param objectNames 对象名称
+     * @author luhao
+     * @date 2025/06/04 19:35:28
+     */
+    public void removeFiles(String bucketName, List<String> objectNames) {
+        List<DeleteObject> objectsToDelete = objectNames.stream()
+            .map(DeleteObject::new)
+            .collect(Collectors.toList());
+
+        try {
+            minioClient.removeObjects(
+                    RemoveObjectsArgs.builder()
+                        .bucket(bucketName)
+                        .objects(objectsToDelete)
+                        .build())
+                .forEach(result -> {
+                    try {
+                        result.get();  // get() 抛出异常代表删除失败
+                    } catch (Exception e) {
+                        log.error("minio文件删除失败: ", e);
+                    }
+                });
+
+        } catch (Exception e) {
+            throw new ServerException("文件删除失败", e);
+        }
+
+    }
+
 
     /**
      * 根据文件前缀查询文件
@@ -182,23 +217,6 @@ public class MinioUtils {
         return list;
     }
 
-    /**
-     * 获取文件大小
-     *
-     * @param bucketName bucket
-     * @param objectName 文件
-     * @return 大小
-     */
-    public String getFileSize(String bucketName, String objectName) {
-        StatObjectArgs args = StatObjectArgs.builder().bucket(bucketName).object(objectName).build();
-        StatObjectResponse stat;
-        try {
-            stat = minioClient.statObject(args);
-        } catch (Exception e) {
-            return "";
-        }
-        return String.valueOf(stat.size());
-    }
 
     /**
      * 获取文件字节
@@ -234,7 +252,7 @@ public class MinioUtils {
      */
     public StatObjectResponse getMetadata(String bucketName, String objectName) {
         try {
-            return  minioClient.statObject(
+            return minioClient.statObject(
                 StatObjectArgs.builder()
                     .bucket(bucketName)
                     .object(objectName)

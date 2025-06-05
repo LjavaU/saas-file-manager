@@ -5,6 +5,7 @@ import com.github.xiaoymin.knife4j.annotations.ApiOperationSupport;
 import com.supcon.system.base.entity.basic.BasicController;
 import com.supcon.systembase.logapi.annotation.SysServiceLog;
 import com.supcon.systembase.logapi.enums.OperateTypeEnum;
+import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
@@ -13,6 +14,9 @@ import com.supcon.tptrecommend.manager.FileManager;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +26,7 @@ import javax.validation.Valid;
 import java.io.IOException;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/open-api/file")
 @RequiredArgsConstructor
@@ -29,7 +34,8 @@ import java.util.Map;
 @Api(tags = "文件管理")
 public class FileController extends BasicController {
 
-   private final FileManager fileManager;
+    private final FileManager fileManager;
+
     /**
      * 上传文件
      *
@@ -41,9 +47,10 @@ public class FileController extends BasicController {
     @CrossOrigin
     @PostMapping(value = "/upload")
     @ApiOperation("上传文件")
+    @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<Long> upload(@RequestPart(value = "file") MultipartFile multipartFile) {
-        Long res = fileManager.upload(multipartFile);
+    public SupResult<Long> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes) {
+        Long res = fileManager.upload(multipartFile,attributes);
         return data(res);
     }
 
@@ -64,23 +71,55 @@ public class FileController extends BasicController {
         return data(res);
     }
 
+    @DeleteMapping("batchDelete")
+    @ApiOperation("批量删除文件")
+    @ApiOperationSupport(order = 3, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-批量删除文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Boolean> batchDelete(@Valid @RequestBody SupRequestBody<IDList<Long>> body) {
+        Boolean res = fileManager.batchDelete(body.getData());
+        return data(res);
+    }
+
     @PostMapping("page")
     @ApiOperation("文件列表查询")
-    @ApiOperationSupport(order = 3, author = "luhao")
+    @ApiOperationSupport(order = 4, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-分页列表查询", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<IPage<FileObjectResp>> queryPageList(@Valid @RequestBody SupRequestBody<Map<String, String>> body) throws Exception{
+    public SupResult<IPage<FileObjectResp>> queryPageList(@Valid @RequestBody SupRequestBody<Map<String, String>> body) throws Exception {
         return data(fileManager.selectPage(body));
     }
 
 
     @PostMapping("getOne")
     @ApiOperation("获取单个文件流")
-    @ApiOperationSupport(order = 4, author = "luhao")
+    @ApiOperationSupport(order = 5, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
     public void getOne(@Valid @RequestBody SupRequestBody<SingleFileQueryReq> req, HttpServletResponse response) throws IOException {
-        fileManager.getOne(req.getData(),response);
+        fileManager.getOne(req.getData(), response);
     }
 
 
+    @GetMapping("detail/{fileId}")
+    @ApiOperation("获取文件详情")
+    @ApiOperationSupport(order = 6, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<FileObjectResp> detail(@PathVariable Long fileId) {
 
+        return data(fileManager.detail(fileId));
+    }
+
+
+    @PostMapping(value = "/to-markdown", produces = MediaType.TEXT_MARKDOWN_VALUE) // or MediaType.TEXT_PLAIN_VALUE
+    public ResponseEntity<String> convertToMarkdown(@RequestParam("file") MultipartFile file) {
+        try {
+            String markdown = fileManager.convertToMarkdown(file);
+            return ResponseEntity.ok(markdown);
+        } catch (IllegalArgumentException e) {
+            log.error("Error: ", e);
+        } catch (IOException e) {
+            log.error("Error processing file: ", e);
+        } catch (Exception e) {
+            log.error("An unexpected error occurred:", e);
+        }
+        return ResponseEntity.ok().body("");
+    }
 }

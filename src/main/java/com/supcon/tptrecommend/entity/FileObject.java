@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.supcon.system.base.entity.BasicEntity;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /**
  * <p>
@@ -50,5 +52,53 @@ public class FileObject extends BasicEntity<Long> {
 
     @ApiModelProperty(value = "标签", example = "标签")
     private String tags;
+
+    @ApiModelProperty(value = "所属分类")
+    private String category;
+
+
+    @ApiModelProperty(value = "对应能力&应用")
+    private String ability;
+
+
+    @ApiModelProperty(value = "内容概述")
+    private String contentOverview;
+
+    @ApiModelProperty(value = "文件解析状态，【0-未解析，1-解析完成，2-解释失败】")
+    private Integer fileStatus;
+
+    @AllArgsConstructor
+    @Getter
+    public enum FileStatus {
+        UNPARSED(0, "未解析"),
+        PARSED(1, "解析完成"),
+        PARSE_FAILED(2, "解析失败");
+
+        private final Integer value;
+        private final String desc;
+    }
+
+
+    @AllArgsConstructor
+    @Getter
+    public enum Category {
+        SYSTEM("0","系统配置"),
+        BASIC_DATA("1","基础数据"),
+        DYNAMIC_DATA("2","动态数据"),
+        BUSINESS_DATA("3","业务数据");
+
+        private final String code;
+        private final String value;
+
+        // 根据code获取value
+        public static String getValueByCode(String code) {
+            for (Category category : Category.values()) {
+                if (category.code.equals(code)) {
+                    return category.value;
+                }
+            }
+            return null;
+        }
+    }
 
 }

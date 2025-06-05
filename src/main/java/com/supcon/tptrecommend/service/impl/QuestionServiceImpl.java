@@ -140,7 +140,7 @@ public class QuestionServiceImpl extends BasicServiceImpl<QuestionMapper, Questi
             EasyExcel.write(response.getOutputStream(), QuestionImportExcel.class)
                 .registerWriteHandler(dropdownSheetWriteHandler) // 注册自定义Handler
                 .sheet("用户数据模板") // Sheet名称
-                .excludeColumnFieldNames(Collections.singletonList("errorMessage"))
+                .excludeColumnFieldNames(Collections.singletonList("errorMsg"))
                 .doWrite(Collections.emptyList()); // 传入空List或少量示例数据
             log.info("Excel模板导出成功: {}", fileName);
 

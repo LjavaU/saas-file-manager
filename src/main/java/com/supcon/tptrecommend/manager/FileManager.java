@@ -1,6 +1,7 @@
 package com.supcon.tptrecommend.manager;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
@@ -16,11 +17,12 @@ public interface FileManager {
      * 上传
      *
      * @param multipartFile Multipart 文件
+     * @param attributes
      * @return {@link Boolean }
      * @author luhao
      * @date 2025/05/22 15:36:07
      */
-    Long upload(MultipartFile multipartFile);
+    Long upload(MultipartFile multipartFile, String attributes);
 
     /**
      * 删除
@@ -53,4 +55,27 @@ public interface FileManager {
      * @date 2025/05/29 16:49:37
      */
     void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException;
+
+    String convertToMarkdown(MultipartFile file) throws IOException;
+
+    FileObjectResp detail(Long fileId);
+
+    /**
+     * 处理文件分析
+     *
+     * @param fileId 文件 ID
+     * @author luhao
+     * @date 2025/06/04 19:21:35
+     */
+    void handleFileAnalysis(Long fileId);
+
+    /**
+     * 批量删除
+     *
+     * @param data 文件id
+     * @return {@link Boolean }
+     * @author luhao
+     * @date 2025/06/04 19:44:28
+     */
+    Boolean batchDelete(IDList<Long> data);
 }

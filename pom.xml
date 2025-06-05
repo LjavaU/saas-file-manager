@@ -62,10 +62,41 @@
             <artifactId>system-component-excel</artifactId>
         </dependency>
 
+        <!-- Apache POI for Excel files -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
+        <!--判断文件编码-->
+        <dependency>
+            <groupId>com.github.albfernandez</groupId>
+            <artifactId>juniversalchardet</artifactId>
+            <version>2.4.0</version>
+        </dependency>
+
+       <!--csv文件解析组件-->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+
         <!--代码生成器-->
         <dependency>
             <groupId>com.supcon</groupId>
             <artifactId>generator-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.supcon</groupId>
+            <artifactId>system-component-websocket</artifactId>
         </dependency>
     </dependencies>
 
