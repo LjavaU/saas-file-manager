@@ -260,6 +260,7 @@ public class FileManagerImpl implements FileManager {
 
             if (parse != null) {
                 String category = FileObject.Category.getValueByCode(parse.getCategory());
+                System.out.println(parse.getData());
                 updateFileParseSuccess(fileId, category, parse.getSummary());
                 notifyParseComplete(fileId);
                 buildDataAndSave(parse.getData(), originalFilename);
@@ -312,6 +313,55 @@ public class FileManagerImpl implements FileManager {
                     log.info("位号历史数据保存成功");
                 } else {
                     log.error("数据历史保存失败");
+                }
+
+            } else if (obj.containsKey("回路名称") && obj.containsKey("回路描述")) {
+                List<TagInfoCreateReq> tagInfoCreateReqs = dataArray.stream().map(o -> {
+                        JSONObject dataObj = (JSONObject) o;
+                        List<TagInfoCreateReq> tags = new ArrayList<>();
+                        TagInfoCreateReq tagInfoCreateReq = new TagInfoCreateReq();
+                        tagInfoCreateReq.setTagName(dataObj.getStr("测量值位号"));
+                        tagInfoCreateReq.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq.setTagType(4);
+                        tags.add(tagInfoCreateReq);
+                        TagInfoCreateReq tagInfoCreateReq2 = new TagInfoCreateReq();
+                        tagInfoCreateReq2.setTagName(dataObj.getStr("设定值位号"));
+                        tagInfoCreateReq2.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq2.setTagType(4);
+                        tags.add(tagInfoCreateReq2);
+                        TagInfoCreateReq tagInfoCreateReq3 = new TagInfoCreateReq();
+                        tagInfoCreateReq3.setTagName(dataObj.getStr("阀位值位号"));
+                        tagInfoCreateReq3.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq3.setTagType(4);
+                        tags.add(tagInfoCreateReq3);
+                        TagInfoCreateReq tagInfoCreateReq4 = new TagInfoCreateReq();
+                        tagInfoCreateReq4.setTagName(dataObj.getStr("控制模式位号"));
+                        tagInfoCreateReq4.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq4.setTagType(4);
+                        tags.add(tagInfoCreateReq4);
+                        TagInfoCreateReq tagInfoCreateReq5 = new TagInfoCreateReq();
+                        tagInfoCreateReq5.setTagName(dataObj.getStr("比例位号"));
+                        tagInfoCreateReq5.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq5.setTagType(4);
+                        tags.add(tagInfoCreateReq5);
+                        TagInfoCreateReq tagInfoCreateReq6 = new TagInfoCreateReq();
+                        tagInfoCreateReq6.setTagName(dataObj.getStr("积分位号"));
+                        tagInfoCreateReq6.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq6.setTagType(4);
+                        tags.add(tagInfoCreateReq6);
+                        TagInfoCreateReq tagInfoCreateReq7 = new TagInfoCreateReq();
+                        tagInfoCreateReq7.setTagName(dataObj.getStr("微分位号"));
+                        tagInfoCreateReq7.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
+                        tagInfoCreateReq7.setTagType(4);
+                        tags.add(tagInfoCreateReq7);
+                        return tags;
+                    }).flatMap(Collection::stream)
+                    .collect(Collectors.toList());
+                SupResult<List<TagInfoResp>> result = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
+                if (result.getSuccess()) {
+                    log.info("回路数据保存成功");
+                } else {
+                    log.error("回路数据保存失败");
                 }
 
             }
