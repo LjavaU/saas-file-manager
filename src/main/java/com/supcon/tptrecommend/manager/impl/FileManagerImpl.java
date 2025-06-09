@@ -14,14 +14,11 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemcommon.exception.SupException;
-import com.supcon.systemcomponent.websocket.WebSocketSender;
-import com.supcon.systemcomponent.websocket.message.JsonMessageDO;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.utils.FileConvertUtil;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
+import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
-import com.supcon.tptrecommend.dto.FileParse.FileParseProgressResp;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
@@ -30,6 +27,7 @@ import com.supcon.tptrecommend.feign.DataHubFeign;
 import com.supcon.tptrecommend.feign.LlmFeign;
 import com.supcon.tptrecommend.feign.entity.*;
 import com.supcon.tptrecommend.manager.FileManager;
+import com.supcon.tptrecommend.manager.FileParseManager;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +46,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,8 +62,6 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileObjectService fileObjectService;
 
-    private final FileConvertUtil fileConvertUtil;
-
 
     private final LlmFeign llmFeign;
 
@@ -76,6 +71,11 @@ public class FileManagerImpl implements FileManager {
     private final Executor EXECUTOR = new ThreadPoolExecutor(4, 8,
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
+
+    private final FileParseManager fileParseManager;
+
+    public  static final   Map<Long,FileParseResp> CACHE = new ConcurrentHashMap<>();
+
 
     /**
      * 上传文件
@@ -93,21 +93,17 @@ public class FileManagerImpl implements FileManager {
         // 3. 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
-        Long userId = user.getId();
         // 4.拼装文件路径
         String objectKey = getPath(user) + uniqueFilename;
         // 5.上传文件到MinIO
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-        if (StrUtil.isNotBlank(attributes)) {
-            String markdown = convertToMarkdownSafe(file, fileId, originalFilename);
-            if (markdown == null) {
-                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-                return fileId;
-            }
-            // TODO: 未传入头部信息，暂时不处理
-            parseWithLLMAsync(fileId, markdown, originalFilename, null);
+        if (StrUtil.isBlank(attributes)) {
+            CompletableFuture.runAsync(() -> {
+                handleFileAnalysis(file,fileId);
+            }, EXECUTOR);
+
         }
         return fileId;
     }
@@ -135,110 +131,7 @@ public class FileManagerImpl implements FileManager {
     }
 
 
-    private String convertToMarkdownSafe(MultipartFile file, Long fileId, String originalFilename) {
-        String markdown;
-        try {
-            markdown = fileConvertUtil.convertToMarkdown(file, null);
-        } catch (Exception e) {
-            log.error("文件转换失败: {}", originalFilename);
-            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-            return null;
-        }
-        if (markdown == null) {
-            log.error("文件转换失败: {}", originalFilename);
-            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-            return null;
-        }
-        return markdown;
-    }
 
-
-    private void notifyParseComplete(Long fileId) {
-        FileParseProgressResp data = FileParseProgressResp.builder()
-            .parseProgress(100)
-            .build();
-        WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
-    }
-
-
-    private void notifyProcess(Long fileId) {
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
-        int totalSteps = 12;
-        int initialProgress = 10;
-        int finalProgress = 90;
-        int stepIncrement = (finalProgress - initialProgress) / totalSteps;
-
-        AtomicInteger currentProgress = new AtomicInteger(initialProgress);
-
-        ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
-            int progress = currentProgress.getAndAdd(stepIncrement);
-            if (progress >= finalProgress) {
-                scheduler.shutdown();
-            }
-            FileParseProgressResp data = FileParseProgressResp.builder()
-                .parseProgress(progress)
-                .build();
-            WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
-        }, 0, 500, TimeUnit.MILLISECONDS);
-    }
-
-    public void notifyProcessNew(Long fileId) {
-        int start = 10;
-        int endCap = 99;  // 最大不能达到 100
-        int durationMs = 6000;
-        int intervalMs = 500;
-        int steps = durationMs / intervalMs;
-
-        int totalMaxIncrement = endCap - start;  // 99 - 10 = 89
-        int totalIncrement = totalMaxIncrement - new Random().nextInt(2) - 1; // 例如最多用到 88
-
-        List<Integer> increments = generateRandomSteps(totalIncrement, steps);
-
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        AtomicInteger stepIndex = new AtomicInteger(0);
-        AtomicInteger currentProgress = new AtomicInteger(start);
-
-        scheduler.scheduleAtFixedRate(() -> {
-            int i = stepIndex.getAndIncrement();
-            if (i < increments.size()) {
-                int progress = currentProgress.addAndGet(increments.get(i));
-                if (progress >= 100) {
-                    progress = 99; // 强制不超过
-                }
-                FileParseProgressResp data = FileParseProgressResp.builder()
-                    .parseProgress(progress)
-                    .build();
-                WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
-            } else {
-                scheduler.shutdown();
-            }
-        }, 0, intervalMs, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * 将 totalSum 拆分成 n 个正整数，和为 totalSum。
-     */
-    private static List<Integer> generateRandomSteps(int totalSum, int n) {
-        Random rand = new Random();
-        int[] cuts = new int[n - 1];
-
-        // 生成 n-1 个随机分割点
-        for (int i = 0; i < n - 1; i++) {
-            cuts[i] = rand.nextInt(totalSum - 1) + 1;
-        }
-        Arrays.sort(cuts);
-
-        List<Integer> steps = new ArrayList<>();
-        int prev = 0;
-        for (int cut : cuts) {
-            steps.add(cut - prev);
-            prev = cut;
-        }
-        steps.add(totalSum - prev);  // 最后一段
-
-        return steps;
-    }
 
 
     /**
@@ -251,31 +144,28 @@ public class FileManagerImpl implements FileManager {
      * @author luhao
      * @date 2025/06/05 18:31:00
      */
-    private void parseWithLLMAsync(Long fileId, String markdown, String originalFilename, String headMarkdown) {
-        EXECUTOR.execute(() -> {
-            FileParseResp parse = llmFeign.parse(FileParseReq.builder()
-                .markdownContent(markdown)
-                .headMarkdownContent(headMarkdown)
-                .build());
-
-            if (parse != null) {
-                String category = FileObject.Category.getValueByCode(parse.getCategory());
-                System.out.println(parse.getData());
-                updateFileParseSuccess(fileId, category, parse.getSummary());
-                notifyParseComplete(fileId);
-                buildDataAndSave(parse.getData(), originalFilename);
-            } else {
-                log.error("{}文件，大模型分析失败", originalFilename);
-                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-                notifyParseComplete(fileId);
-            }
-        });
+    private void parseWithLLM(Long fileId, String markdown, String originalFilename, String headMarkdown) {
+        FileParseResp parse = llmFeign.parse(FileParseReq.builder()
+            .markdownContent(markdown)
+            .headMarkdownContent(headMarkdown)
+            .build());
+        if (parse != null) {
+            CACHE.put(fileId, parse);
+            String category = FileObject.Category.getValueByCode(parse.getCategory());
+            updateFileParseSuccess(fileId, category, parse.getSummary());
+            ProcessProgressSupport.notifyParseComplete(fileId);
+            buildDataAndSave(parse.getData(), originalFilename);
+        } else {
+            log.error("{}文件，大模型分析失败", originalFilename);
+            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+            ProcessProgressSupport.notifyParseComplete(fileId);
+        }
     }
 
     public void buildDataAndSave(JSONArray dataArray, String originalFilename) {
         if (CollectionUtil.isNotEmpty(dataArray)) {
             JSONObject obj = dataArray.getJSONObject(0);
-            if (obj.containsKey("位号名称") || obj.containsKey("位号描述")) {
+            if (obj.containsKey("位号名称") && obj.containsKey("位号描述")) {
                 List<TagInfoCreateReq> tagInfoCreateReqs = dataArray.stream().map(o -> {
                     JSONObject dataObj = (JSONObject) o;
                     TagInfoCreateReq tagInfoCreateReq = new TagInfoCreateReq();
@@ -482,11 +372,9 @@ public class FileManagerImpl implements FileManager {
     }
 
     @Override
-    public String convertToMarkdown(MultipartFile file) throws IOException {
-        List<List<String>> headers = new ArrayList<>();
-        String markdown = fileConvertUtil.convertToMarkdown(file, headers);
-        System.out.println(fileConvertUtil.generateMarkdownTable(headers));
-        return markdown;
+    public String convertToMarkdown(MultipartFile file) throws Exception {
+        return fileParseManager.parseFileToMarkdown(file, true);
+
     }
 
     @Override
@@ -497,26 +385,37 @@ public class FileManagerImpl implements FileManager {
     }
 
     /**
-     * 处理文件分析
+     * 调用大模型进行文件分析
      *
+     * @param file 文件
      * @param fileId 文件 ID
      * @author luhao
-     * @date 2025/06/04 19:22:56
+     * @since 2025/06/09 18:16:20
      */
-    public void handleFileAnalysis(Long fileId) {
+    public void handleFileAnalysis(MultipartFile file, Long fileId) {
         FileObject fileObject = fileObjectService.getById(fileId);
+        String originalFilename = file.getOriginalFilename();
         if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
-            InputStream inputStream = minioUtils.getFileBytes(fileObject.getBucketName(), fileObject.getObjectName());
-            List<List<String>> headers = new ArrayList<>();
-            String markdown = fileConvertUtil.convertToMarkdown(inputStream, fileObject.getOriginalName(), headers);
-            String headMarkdown = fileConvertUtil.generateMarkdownTable(headers);
-            if (StrUtil.isBlank(markdown)) {
+            // 模拟的方式推送处理进度
+            ProcessProgressSupport.notifyProcessProgress(fileId);
+            String fullContentMarkdown;
+            String headMarkdown;
+            try {
+                fullContentMarkdown = fileParseManager.parseFileToMarkdown(file, false);
+                headMarkdown = fileParseManager.parseFileToMarkdown(file,true);
+            } catch (Exception e) {
+                log.error("文件解析失败：{}", originalFilename, e);
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-                notifyParseComplete(fileId);
+                ProcessProgressSupport.notifyParseComplete(fileId);
                 return;
             }
-            notifyProcessNew(fileId);
-            parseWithLLMAsync(fileId, markdown, fileObject.getOriginalName(), headMarkdown);
+            if (StrUtil.isAllNotBlank(fullContentMarkdown, headMarkdown)) {
+                parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
+            } else {
+                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+                ProcessProgressSupport.notifyParseComplete(fileId);
+            }
+
 
         }
     }

@@ -56,18 +56,19 @@ public interface FileManager {
      */
     void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException;
 
-    String convertToMarkdown(MultipartFile file) throws IOException;
+    String convertToMarkdown(MultipartFile file) throws Exception;
 
     FileObjectResp detail(Long fileId);
 
     /**
      * 处理文件分析
      *
+     * @param file
      * @param fileId 文件 ID
      * @author luhao
      * @date 2025/06/04 19:21:35
      */
-    void handleFileAnalysis(Long fileId);
+    void handleFileAnalysis(MultipartFile file, Long fileId);
 
     /**
      * 批量删除
