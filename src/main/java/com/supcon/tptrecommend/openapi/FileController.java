@@ -113,10 +113,6 @@ public class FileController extends BasicController {
         try {
             String markdown = fileManager.convertToMarkdown(file);
             return ResponseEntity.ok(markdown);
-        } catch (IllegalArgumentException e) {
-            log.error("Error: ", e);
-        } catch (IOException e) {
-            log.error("Error processing file: ", e);
         } catch (Exception e) {
             log.error("An unexpected error occurred:", e);
         }

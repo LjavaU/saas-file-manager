@@ -32,8 +32,13 @@ public interface FileObjectConvert {
     // 自定义方法
     default BigDecimal mapFileSize(Long fileSize) {
         BigDecimal divide = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 2, RoundingMode.HALF_UP);
-        if (divide.equals(BigDecimal.ZERO)) {
-            return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 4, RoundingMode.HALF_UP);
+        if (divide.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal div = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 4, RoundingMode.HALF_UP);
+            if (div.compareTo(BigDecimal.ZERO) == 0) {
+                return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 6, RoundingMode.HALF_UP);
+            } else {
+                return div;
+            }
         }
         return divide;
 
