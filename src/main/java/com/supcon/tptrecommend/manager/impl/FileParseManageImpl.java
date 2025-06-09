@@ -12,10 +12,7 @@ import org.apache.commons.io.IOUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,7 +80,7 @@ public class FileParseManageImpl implements FileParseManager {
             return null;
         }
         Charset charset = FileEncodingDetector.detectCharset(byteArray);
-        return doParseAndConvert(inputStream, originalFilename, charset,onlyHeader);
+        return doParseAndConvert(new ByteArrayInputStream(byteArray), originalFilename, charset,onlyHeader);
     }
 
 

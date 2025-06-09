@@ -31,6 +31,7 @@ import com.supcon.tptrecommend.manager.FileParseManager;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
@@ -86,6 +88,7 @@ public class FileManagerImpl implements FileManager {
      * @author luhao
      * @date 2025/05/22 14:56:00
      */
+    @SneakyThrows
     @Override
     public Long upload(MultipartFile file, String attributes) {
         // 2. 生成对象键 (Object Key)
@@ -99,9 +102,10 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
+        byte[] bytes = file.getBytes();
         if (StrUtil.isBlank(attributes)) {
             CompletableFuture.runAsync(() -> {
-                handleFileAnalysis(file,fileId);
+                handleFileAnalysis(bytes,fileId);
             }, EXECUTOR);
 
         }
@@ -387,22 +391,24 @@ public class FileManagerImpl implements FileManager {
     /**
      * 调用大模型进行文件分析
      *
-     * @param file 文件
+     * @param bytes  字节
      * @param fileId 文件 ID
      * @author luhao
      * @since 2025/06/09 18:16:20
      */
-    public void handleFileAnalysis(MultipartFile file, Long fileId) {
+    public void handleFileAnalysis(byte[] bytes, Long fileId) {
         FileObject fileObject = fileObjectService.getById(fileId);
-        String originalFilename = file.getOriginalFilename();
+        String originalFilename = fileObject.getOriginalName();
         if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
             // 模拟的方式推送处理进度
             ProcessProgressSupport.notifyProcessProgress(fileId);
             String fullContentMarkdown;
             String headMarkdown;
             try {
-                fullContentMarkdown = fileParseManager.parseFileToMarkdown(file, false);
-                headMarkdown = fileParseManager.parseFileToMarkdown(file,true);
+                InputStream inputStream = new ByteArrayInputStream(bytes);
+                fullContentMarkdown = fileParseManager.parseStreamToMarkdown(inputStream, originalFilename, false);
+                InputStream in = new ByteArrayInputStream(bytes);
+                headMarkdown = fileParseManager.parseStreamToMarkdown(in,originalFilename,true);
             } catch (Exception e) {
                 log.error("文件解析失败：{}", originalFilename, e);
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());

@@ -63,12 +63,12 @@ public interface FileManager {
     /**
      * 处理文件分析
      *
-     * @param file
+     * @param bytes  字节
      * @param fileId 文件 ID
      * @author luhao
-     * @date 2025/06/04 19:21:35
+     * @since 2025/06/09 20:28:27
      */
-    void handleFileAnalysis(MultipartFile file, Long fileId);
+    void handleFileAnalysis(byte[] bytes, Long fileId);
 
     /**
      * 批量删除
