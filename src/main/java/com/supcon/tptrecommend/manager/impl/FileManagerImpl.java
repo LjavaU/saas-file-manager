@@ -39,7 +39,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
@@ -405,10 +404,8 @@ public class FileManagerImpl implements FileManager {
             String fullContentMarkdown;
             String headMarkdown;
             try {
-                InputStream inputStream = new ByteArrayInputStream(bytes);
-                fullContentMarkdown = fileParseManager.parseStreamToMarkdown(inputStream, originalFilename, false);
-                InputStream in = new ByteArrayInputStream(bytes);
-                headMarkdown = fileParseManager.parseStreamToMarkdown(in,originalFilename,true);
+                fullContentMarkdown = fileParseManager.parseBytesToMarkdown(bytes, originalFilename, false);
+                headMarkdown = fileParseManager.parseBytesToMarkdown(bytes,originalFilename,true);
             } catch (Exception e) {
                 log.error("文件解析失败：{}", originalFilename, e);
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
@@ -416,7 +413,7 @@ public class FileManagerImpl implements FileManager {
                 return;
             }
             if (StrUtil.isAllNotBlank(fullContentMarkdown, headMarkdown)) {
-                parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
+               parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
             } else {
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
                 ProcessProgressSupport.notifyParseComplete(fileId);

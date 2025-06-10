@@ -60,15 +60,6 @@ public interface FileManager {
 
     FileObjectResp detail(Long fileId);
 
-    /**
-     * 处理文件分析
-     *
-     * @param bytes  字节
-     * @param fileId 文件 ID
-     * @author luhao
-     * @since 2025/06/09 20:28:27
-     */
-    void handleFileAnalysis(byte[] bytes, Long fileId);
 
     /**
      * 批量删除
