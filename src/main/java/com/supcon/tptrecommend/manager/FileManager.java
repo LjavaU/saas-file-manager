@@ -22,7 +22,7 @@ public interface FileManager {
      * @author luhao
      * @date 2025/05/22 15:36:07
      */
-    Long upload(MultipartFile multipartFile, String attributes);
+    FileObjectResp upload(MultipartFile multipartFile, String attributes);
 
     /**
      * 删除

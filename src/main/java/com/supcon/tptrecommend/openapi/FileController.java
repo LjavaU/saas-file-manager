@@ -49,9 +49,8 @@ public class FileController extends BasicController {
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<Long> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes) {
-        Long res = fileManager.upload(multipartFile,attributes);
-        return data(res);
+    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes) {
+        return data(fileManager.upload(multipartFile,attributes));
     }
 
     /**

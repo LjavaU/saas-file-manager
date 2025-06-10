@@ -89,7 +89,7 @@ public class FileManagerImpl implements FileManager {
      */
     @SneakyThrows
     @Override
-    public Long upload(MultipartFile file, String attributes) {
+    public FileObjectResp upload(MultipartFile file, String attributes) {
         // 2. 生成对象键 (Object Key)
         String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
         // 3. 生成唯一文件名
@@ -108,7 +108,7 @@ public class FileManagerImpl implements FileManager {
             }, EXECUTOR);
 
         }
-        return fileId;
+        return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
 
