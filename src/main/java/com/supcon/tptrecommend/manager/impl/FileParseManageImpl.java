@@ -8,12 +8,11 @@ import com.supcon.tptrecommend.manager.FileParseManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.commons.io.IOUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
@@ -36,7 +35,7 @@ public class FileParseManageImpl implements FileParseManager {
      * @since 2025/06/09 16:07:05
      */
     @Override
-    public String parseFileToMarkdown(MultipartFile file,Boolean onlyHeader) throws Exception {
+    public String parseFileToMarkdown(MultipartFile file, Boolean onlyHeader) throws Exception {
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null) {
             log.error("原始文件为空");
@@ -45,16 +44,16 @@ public class FileParseManageImpl implements FileParseManager {
 
         log.info("开始解析文件: {}", originalFilename);
         Charset charset = FileEncodingDetector.detectCharset(file);
-        return doParseAndConvert(file.getInputStream(), originalFilename, charset,onlyHeader);
+        return doParseAndConvert(file.getInputStream(), originalFilename, charset, onlyHeader);
     }
 
-    private String doParseAndConvert(InputStream inputStream, String originalFilename, Charset charset,Boolean onlyHeader) throws Exception {
+    private String doParseAndConvert(InputStream inputStream, String originalFilename, Charset charset, Boolean onlyHeader) throws Exception {
         List<List<String>> data;
         try (InputStream in = inputStream) {
             if (originalFilename.toLowerCase().endsWith(".csv")) {
-                data = parseCsv(in, charset,onlyHeader);
+                data = parseCsv(in, charset, onlyHeader);
             } else if (originalFilename.toLowerCase().endsWith(".xlsx") || originalFilename.toLowerCase().endsWith(".xls")) {
-                data = parseExcel(in,onlyHeader);
+                data = parseExcel(in, onlyHeader);
             } else {
                 log.error("不支持的文件类型: {}", originalFilename);
                 return null;
@@ -64,33 +63,28 @@ public class FileParseManageImpl implements FileParseManager {
     }
 
     /**
-     * 将文件流解析为 Markdown
+     * 将字节流解析为 Markdown
      *
-     * @param inputStream      输入流
+     * @param bytes            字节
      * @param originalFilename 原始文件名
+     * @param onlyHeader       Only 标头
      * @return {@link String } 返回Markdown字符串
      * @throws Exception 异常
      * @author luhao
      * @since 2025/06/09 16:24:16
      */
     @Override
-    public String parseStreamToMarkdown(InputStream inputStream, String originalFilename,Boolean onlyHeader) throws Exception {
-        byte[] byteArray;
-        try {
-            byteArray = IOUtils.toByteArray(inputStream);
-        } catch (IOException e) {
-            log.error("无法读取上传的文件:{}", originalFilename, e);
-            return null;
-        }
-        Charset charset = FileEncodingDetector.detectCharset(byteArray);
-        return doParseAndConvert(inputStream, originalFilename, charset,onlyHeader);
+    public String parseBytesToMarkdown(byte[] bytes, String originalFilename, Boolean onlyHeader) throws Exception {
+        //  获取文件编码
+        Charset charset = FileEncodingDetector.detectCharset(bytes);
+        return doParseAndConvert(new ByteArrayInputStream(bytes), originalFilename, charset, onlyHeader);
     }
 
 
     /**
      * Parses a CSV file using Apache Commons CSV in a streaming fashion.
      */
-    private List<List<String>> parseCsv(InputStream inputStream,  Charset charset,Boolean onlyHeader) throws Exception {
+    private List<List<String>> parseCsv(InputStream inputStream, Charset charset, Boolean onlyHeader) throws Exception {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, charset));
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.builder()
                  .setHeader() // Treat the first line as header
@@ -120,7 +114,7 @@ public class FileParseManageImpl implements FileParseManager {
     /**
      * Parses an Excel file (.xls or .xlsx) using EasyExcel's listener model for high performance.
      */
-    private List<List<String>> parseExcel(InputStream inputStream,Boolean onlyHeader) {
+    private List<List<String>> parseExcel(InputStream inputStream, Boolean onlyHeader) {
         ExcelDataListener listener = new ExcelDataListener();
         // Use .sheet() to read the first sheet. .doRead() will trigger the parsing.
         // We use .read(Map.class) to handle arbitrary columns without a predefined POJO.

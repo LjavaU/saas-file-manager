@@ -26,7 +26,7 @@ public interface FileManager {
      * @author luhao
      * @date 2025/05/22 15:36:07
      */
-    Long upload(MultipartFile multipartFile, String attributes, String path);
+    FileObjectResp upload(MultipartFile multipartFile, String attributes,String path);
 
     /**
      * 删除
@@ -64,15 +64,6 @@ public interface FileManager {
 
     FileObjectResp detail(Long fileId);
 
-    /**
-     * 处理文件分析
-     *
-     * @param file
-     * @param fileId 文件 ID
-     * @author luhao
-     * @date 2025/06/04 19:21:35
-     */
-    void handleFileAnalysis(MultipartFile file, Long fileId);
 
     /**
      * 批量删除

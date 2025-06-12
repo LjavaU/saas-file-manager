@@ -2,8 +2,6 @@ package com.supcon.tptrecommend.manager;
 
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
-
 public interface FileParseManager {
     /**
      * 将文件解析为 Markdown
@@ -19,9 +17,9 @@ public interface FileParseManager {
     String parseFileToMarkdown(MultipartFile file,Boolean onlyHeader) throws Exception;
 
     /**
-     * 将流解析为 Markdown
+     * 将字节流解析为 Markdown
      *
-     * @param inputStream      输入流
+     * @param bytes            字节
      * @param originalFilename 原始文件名
      * @param onlyHeader       是否只包含标题
      * @return {@link String } 返回Markdown字符串
@@ -29,7 +27,7 @@ public interface FileParseManager {
      * @author luhao
      * @since 2025/06/09 16:29:08
      */
-    String parseStreamToMarkdown(InputStream inputStream, String originalFilename,Boolean onlyHeader) throws Exception;
+    String parseBytesToMarkdown(byte[] bytes,  String originalFilename,Boolean onlyHeader) throws Exception;
 
 
 }
