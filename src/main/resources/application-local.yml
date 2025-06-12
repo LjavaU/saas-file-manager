@@ -28,12 +28,6 @@ sup:
   websocket:
       # websocket 端点路径,多个中间','隔开
     path: /supWs
-    session-key-options:
-      param-name: fileId
-      # 是否开启key映射功能，默认关闭
-      enabled: true
-      # key类型：session绑定key，目前支持 user(用户)、param(参数) 两种模式，默认为none
-      type: param
 minio:
   endpoint: http://seak8sm1.supcon5t.com:30350
   accessKey: admin

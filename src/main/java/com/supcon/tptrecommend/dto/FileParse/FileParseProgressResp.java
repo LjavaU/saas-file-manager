@@ -10,6 +10,8 @@ import lombok.Data;
 @Builder
 public class FileParseProgressResp {
 
+    @ApiModelProperty(value = "文件id")
+    private Long fileId;
 
     @ApiModelProperty(value = "解析进度")
     private Integer parseProgress;

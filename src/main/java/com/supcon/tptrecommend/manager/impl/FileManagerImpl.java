@@ -19,9 +19,7 @@ import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
-import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
-import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
-import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
+import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.DataHubFeign;
 import com.supcon.tptrecommend.feign.LlmFeign;
@@ -33,6 +31,7 @@ import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,6 +39,8 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -74,7 +75,7 @@ public class FileManagerImpl implements FileManager {
 
     private final FileParseManager fileParseManager;
 
-    public  static final   Map<Long,FileParseResp> CACHE = new ConcurrentHashMap<>();
+    public static final Map<Long, FileParseResp> CACHE = new ConcurrentHashMap<>();
 
 
     /**
@@ -82,26 +83,35 @@ public class FileManagerImpl implements FileManager {
      *
      * @param file       文件
      * @param attributes 属性
+     * @param path
      * @return {@link Boolean }
      * @author luhao
      * @date 2025/05/22 14:56:00
      */
     @Override
-    public Long upload(MultipartFile file, String attributes) {
+    public Long upload(MultipartFile file, String attributes, String path) {
         // 2. 生成对象键 (Object Key)
         String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
         // 3. 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
-        // 4.拼装文件路径
-        String objectKey = getPath(user) + uniqueFilename;
+        // 文件全路径
+        String objectKey;
+        if (StrUtil.isNotBlank(path)) {
+            if (!path.endsWith(FILE_SPLIT)) {
+                path += FILE_SPLIT;
+            }
+            objectKey = path + uniqueFilename;
+        } else {
+            objectKey = getPath(user) + uniqueFilename;
+        }
         // 5.上传文件到MinIO
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
         if (StrUtil.isBlank(attributes)) {
             CompletableFuture.runAsync(() -> {
-                handleFileAnalysis(file,fileId);
+                handleFileAnalysis(file, fileId);
             }, EXECUTOR);
 
         }
@@ -129,9 +139,6 @@ public class FileManagerImpl implements FileManager {
             .fileSize(file.getSize())
             .build());
     }
-
-
-
 
 
     /**
@@ -387,7 +394,7 @@ public class FileManagerImpl implements FileManager {
     /**
      * 调用大模型进行文件分析
      *
-     * @param file 文件
+     * @param file   文件
      * @param fileId 文件 ID
      * @author luhao
      * @since 2025/06/09 18:16:20
@@ -402,7 +409,7 @@ public class FileManagerImpl implements FileManager {
             String headMarkdown;
             try {
                 fullContentMarkdown = fileParseManager.parseFileToMarkdown(file, false);
-                headMarkdown = fileParseManager.parseFileToMarkdown(file,true);
+                headMarkdown = fileParseManager.parseFileToMarkdown(file, true);
             } catch (Exception e) {
                 log.error("文件解析失败：{}", originalFilename, e);
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
@@ -410,7 +417,7 @@ public class FileManagerImpl implements FileManager {
                 return;
             }
             if (StrUtil.isAllNotBlank(fullContentMarkdown, headMarkdown)) {
-                parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
+                  parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
             } else {
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
                 ProcessProgressSupport.notifyParseComplete(fileId);
@@ -437,5 +444,122 @@ public class FileManagerImpl implements FileManager {
         minioUtils.removeFiles(bucket, objectNames);
         fileObjectService.removeBatchByIds(ids);
         return true;
+    }
+
+    @Override
+    public boolean createFolder(CreateFolderReq data) {
+        LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
+        String folderName = data.getFolderName();
+        // 确保 folderName 以斜杠结尾
+        if (!folderName.endsWith(FILE_SPLIT)) {
+            folderName += FILE_SPLIT;
+        }
+        String path = getPath(user) + folderName;
+        minioUtils.createFolder(bucket, path);
+        saveMetadataToDB(user, path);
+        return true;
+    }
+
+    private void saveMetadataToDB(LoginInfoUserDTO user, String path) {
+        fileObjectService.saveObj(FileObjectCreateReq.builder()
+            .userId(user.getId())
+            .userName(user.getUsername())
+            .objectName(path)
+            .bucketName(bucket)
+            .build());
+    }
+
+
+    /**
+     * 获取文件夹层级结构
+     *
+     * @param path 路径
+     * @return {@link List }<{@link FileNodeResp }>
+     * @author luhao
+     * @since 2025/06/12 15:24:19
+     */
+    public List<FileNodeResp> listFiles(String path) {
+        if (StrUtil.isBlank(path)) {
+            path = getPath(LoginUserUtils.getLoginUserInfo());
+        }
+        List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
+            .likeRight(FileObject::getObjectName, path));
+
+        // 用于最终返回的列表
+        List<FileNodeResp> fileNodes = new ArrayList<>();
+        // 用于临时存储直接子文件夹的名称，利用Set自动去重
+        Set<Folder> folderNames = new HashSet<>();
+        for (FileObject fileObject : fileObjects) {
+            String objectName = fileObject.getObjectName();
+            // 移除前缀，得到相对路径
+            String relativePath = objectName.substring(path.length());
+            // 如果相对路径为空，或者就是它自己，跳过
+            if (relativePath.isEmpty()) {
+                continue;
+            }
+            // 检查是否包含'/'来区分文件和文件夹
+            int slashIndex = relativePath.indexOf('/');
+
+            if (slashIndex == -1) {
+                // 不包含'/'，是直接子文件
+                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName);
+                fileNodes.add(node);
+            } else {
+                // 包含'/'，说明在子文件夹下
+                // 我们只取第一个'/'之前的部分，作为文件夹名
+                String folderName = relativePath.substring(0, slashIndex);
+                folderNames.add(Folder.builder()
+                    .id(fileObject.getId())
+                    .name(folderName)
+                    .build());
+            }
+
+        }
+        // 4. 将去重后的文件夹名称转换为FileNode对象
+        for (Folder folder : folderNames) {
+            FileNodeResp node = new FileNodeResp();
+            node.setId(folder.getId());
+            node.setType("folder");
+            node.setName(folder.getName());
+            // 文件夹的路径要以'/'结尾
+            node.setPath(path + folder.getName() + FILE_SPLIT);
+            fileNodes.add(node);
+        }
+
+        // 可以按类型和名称排序，让文件夹显示在前面
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed()
+            .thenComparing(Comparator.comparing(FileNodeResp::getUploadTime).reversed()));
+
+        return fileNodes;
+    }
+
+    @NotNull
+    private FileNodeResp getFileNodeResp(FileObject fileObject, String relativePath, String objectName) {
+        FileNodeResp node = new FileNodeResp();
+        node.setId(fileObject.getId());
+        node.setType("file");
+        node.setName(relativePath.substring(relativePath.indexOf("_") + 1));
+        node.setPath(objectName);
+        node.setCategory(fileObject.getCategory());
+        node.setAbility(fileObject.getAbility());
+        node.setContentOverview(fileObject.getContentOverview());
+        node.setFileStatus(fileObject.getFileStatus());
+        node.setSize(mapFileSize(fileObject.getFileSize()));
+        node.setUploadTime(fileObject.getCreateTime());
+        return node;
+    }
+
+    private BigDecimal mapFileSize(Long fileSize) {
+        BigDecimal divide = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 2, RoundingMode.HALF_UP);
+        if (divide.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal div = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 4, RoundingMode.HALF_UP);
+            if (div.compareTo(BigDecimal.ZERO) == 0) {
+                return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 6, RoundingMode.HALF_UP);
+            } else {
+                return div;
+            }
+        }
+        return divide;
+
     }
 }

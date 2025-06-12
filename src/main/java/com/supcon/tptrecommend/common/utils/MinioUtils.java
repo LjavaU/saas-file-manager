@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.common.utils;
 
 import com.supcon.systemcommon.exception.ServerException;
 import io.minio.*;
+import io.minio.messages.DeleteError;
 import io.minio.messages.DeleteObject;
 import io.minio.messages.Item;
 import lombok.RequiredArgsConstructor;
@@ -12,10 +13,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -146,6 +149,10 @@ public class MinioUtils {
      * @param objectName 对象名称（文件在 MinIO 中的路径）
      */
     public void removeFile(String bucketName, String objectName) {
+        if(objectName.endsWith("/")){
+            deleteFolder(bucketName, objectName);
+            return;
+        }
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
                 .bucket(bucketName)
@@ -155,6 +162,58 @@ public class MinioUtils {
             throw new ServerException("文件删除失败", e);
         }
 
+    }
+
+    /**
+     * 删除文件夹
+     * @param bucketName 存储桶名称
+     * @param folderPath 文件夹路径
+     * @author luhao
+     * @since 2025/06/12 15:17:28
+     */
+    public void deleteFolder(String bucketName, String folderPath)  {
+        Iterable<Result<Item>> objects = minioClient.listObjects(
+            ListObjectsArgs.builder()
+                .bucket(bucketName)
+                .prefix(folderPath)
+                .recursive(true)
+                .build());
+
+        // 2. 将所有对象的名称收集起来，准备批量删除
+        List<DeleteObject> objectsToDelete = new LinkedList<>();
+        for (Result<Item> result : objects) {
+            try {
+                String objectName = result.get().objectName();
+                objectsToDelete.add(new DeleteObject(objectName));
+            } catch (Exception e) {
+                // 处理获取对象时的异常
+                log.error("获取对象信息时出错: ", e);
+            }
+        }
+
+        // 如果列表为空，说明没有文件需要删除，直接返回
+        if (objectsToDelete.isEmpty()) {
+            return;
+        }
+
+        // 3. 执行批量删除操作
+        Iterable<Result<DeleteError>> results = minioClient.removeObjects(
+            RemoveObjectsArgs.builder()
+                .bucket(bucketName)
+                .objects(objectsToDelete)
+                .build());
+
+        // 检查删除结果
+        for (Result<DeleteError> result : results) {
+            try {
+                DeleteError error = result.get();
+                log.error("删除文件:{},时出错:{} ", error.objectName(), error);
+            } catch (Exception e) {
+                // 处理获取删除结果时的异常
+                log.error("检查删除结果时出错: ", e);
+            }
+        }
+        log.info("成功删除文件夹 '{}' 下的所有文件。", folderPath);
     }
 
     /**
@@ -235,6 +294,7 @@ public class MinioUtils {
                     .object(objectName)
                     .build());
         } catch (Exception e) {
+            log.error("文件获取失败: ", e);
             throw new ServerException("文件获取失败", e);
         }
 
@@ -260,6 +320,45 @@ public class MinioUtils {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * 创建文件夹
+     *
+     * @param bucketName 存储桶名称
+     * @param folderName 文件夹名称
+     * @author luhao
+     * @since 2025/06/11 16:30:11
+     */
+    public void createFolder(String bucketName, String folderName) {
+        try {
+            // 确保 folderName 以斜杠结尾
+            if (!folderName.endsWith("/")) {
+                folderName += "/";
+            }
+
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(folderName)  // 注意：以 / 结尾
+                    .stream(new ByteArrayInputStream(new byte[0]), 0, -1)
+                    .contentType("application/x-directory")  // 可选，用于表示这是目录
+                    .build()
+            );
+
+        } catch (Exception e) {
+            log.error("创建文件夹:{}失败: ", folderName, e);
+        }
+    }
+
+    public Iterable<Result<Item>> listObjects(String bucketName, String path) {
+        // 使用 listObjects 来获取文件和文件夹
+        return minioClient.listObjects(
+            ListObjectsArgs.builder()
+                .bucket(bucketName)
+                .prefix(path) // 设置查询的前缀（即当前“目录”）
+                .delimiter("/") // 使用'/'作为分隔符来模拟文件夹
+                .build());
     }
 
 

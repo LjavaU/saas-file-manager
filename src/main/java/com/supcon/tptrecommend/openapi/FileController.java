@@ -8,6 +8,8 @@ import com.supcon.systembase.logapi.enums.OperateTypeEnum;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
+import com.supcon.tptrecommend.dto.fileobject.CreateFolderReq;
+import com.supcon.tptrecommend.dto.fileobject.FileNodeResp;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
 import com.supcon.tptrecommend.manager.FileManager;
@@ -24,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -49,8 +52,8 @@ public class FileController extends BasicController {
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<Long> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes) {
-        Long res = fileManager.upload(multipartFile,attributes);
+    public SupResult<Long> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes,String path) {
+        Long res = fileManager.upload(multipartFile,attributes,path);
         return data(res);
     }
 
@@ -105,6 +108,22 @@ public class FileController extends BasicController {
     public SupResult<FileObjectResp> detail(@PathVariable Long fileId) {
 
         return data(fileManager.detail(fileId));
+    }
+
+    @PostMapping("createFolder")
+    @ApiOperation("创建文件夹")
+    @ApiOperationSupport(order = 7, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Boolean> createFolder(@RequestBody SupRequestBody<CreateFolderReq> req) {
+        return data(fileManager.createFolder(req.getData()));
+    }
+
+    @GetMapping("browse")
+    @ApiOperation("获取文件夹层级结构")
+    @ApiOperationSupport(order = 8, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取文件夹层级结构", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<List<FileNodeResp>> browse(@RequestParam(value = "path", defaultValue = "") String path) {
+        return data( fileManager.listFiles(path));
     }
 
 

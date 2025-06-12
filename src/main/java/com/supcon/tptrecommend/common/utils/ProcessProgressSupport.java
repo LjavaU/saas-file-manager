@@ -1,7 +1,6 @@
 package com.supcon.tptrecommend.common.utils;
 
-import com.supcon.systemcomponent.websocket.WebSocketSender;
-import com.supcon.systemcomponent.websocket.message.JsonMessageDO;
+import com.supcon.tptrecommend.common.WebsocketPush;
 import com.supcon.tptrecommend.dto.FileParse.FileParseProgressResp;
 import com.supcon.tptrecommend.feign.entity.FileParseResp;
 import com.supcon.tptrecommend.manager.impl.FileManagerImpl;
@@ -50,9 +49,10 @@ public class ProcessProgressSupport {
                     return;
                 }
                 FileParseProgressResp data = FileParseProgressResp.builder()
+                    .fileId(fileId)
                     .parseProgress(progress)
                     .build();
-                WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
+                WebsocketPush.pushMessage(data);
             }else {
                 scheduler.shutdown();
             }
@@ -84,9 +84,10 @@ public class ProcessProgressSupport {
 
     public static void notifyParseComplete(Long fileId) {
         FileParseProgressResp data = FileParseProgressResp.builder()
+            .fileId(fileId)
             .parseProgress(100)
             .build();
-        WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
+        WebsocketPush.pushMessage(data);
     }
 
 
