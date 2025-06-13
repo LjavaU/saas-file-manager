@@ -55,7 +55,7 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileObjectService fileObjectService;
 
-    private final Executor EXECUTOR = new ThreadPoolExecutor(4, 8,
+    private final Executor EXECUTOR = new ThreadPoolExecutor(10, 20,
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
