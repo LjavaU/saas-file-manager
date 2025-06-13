@@ -15,4 +15,10 @@ public class FileParseReq {
 
     @ApiModelProperty(value = "markdown头标题内容")
     private String headMarkdownContent;
+
+    @ApiModelProperty(value = "前段markdown内容")
+    private String previousMarkdownContent;
+
+    @ApiModelProperty(value = "文件类型")
+    private String documentType;
 }

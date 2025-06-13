@@ -54,6 +54,10 @@ public class FileParseManageImpl implements FileParseManager {
                 data = parseCsv(in, charset, onlyHeader);
             } else if (originalFilename.toLowerCase().endsWith(".xlsx") || originalFilename.toLowerCase().endsWith(".xls")) {
                 data = parseExcel(in, onlyHeader);
+            } else if (originalFilename.toLowerCase().endsWith(".docx")) {
+                data = null;
+            } else if (originalFilename.toLowerCase().endsWith(".doc")) {
+                data = null;
             } else {
                 log.error("不支持的文件类型: {}", originalFilename);
                 return null;
@@ -104,9 +108,10 @@ public class FileParseManageImpl implements FileParseManager {
                     .collect(Collectors.toList()))
                 .collect(Collectors.toList());
 
+            // TODO:  限制记录数 10条
+            records = records.stream().limit(10).collect(Collectors.toList());
             // 将标题添加为第一行
             records.add(0, header);
-
             return records;
         }
     }
@@ -122,6 +127,8 @@ public class FileParseManageImpl implements FileParseManager {
         if (onlyHeader) {
             return Collections.singletonList(listener.getHeader());
         }
-        return listener.getData();
+        // TODO: 限制记录数 10条
+        return listener.getData().stream().limit(10).collect(Collectors.toList());
     }
 }
+

@@ -1,10 +1,8 @@
 package com.supcon.tptrecommend.common.utils;
 
-import com.supcon.systemcomponent.websocket.WebSocketSender;
-import com.supcon.systemcomponent.websocket.message.JsonMessageDO;
+import com.supcon.tptrecommend.common.WebsocketPush;
 import com.supcon.tptrecommend.dto.FileParse.FileParseProgressResp;
-import com.supcon.tptrecommend.feign.entity.FileParseResp;
-import com.supcon.tptrecommend.manager.impl.FileManagerImpl;
+import com.supcon.tptrecommend.manager.impl.ExcelFileAnalysishandle;
 
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -29,9 +27,9 @@ public class ProcessProgressSupport {
         AtomicInteger stepIndex = new AtomicInteger(0);
         AtomicInteger currentProgress = new AtomicInteger(start);
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        Set<Long> cache = ExcelFileAnalysishandle.CACHE;
         scheduler.scheduleAtFixedRate(() -> {
-            Map<Long, FileParseResp> cache = FileManagerImpl.CACHE;
-            if(cache.containsKey(fileId)){
+            if(cache.contains(fileId)){
                 cache.remove(fileId);
                 scheduler.shutdown();
                 return;
@@ -44,15 +42,16 @@ public class ProcessProgressSupport {
                 }
 
                 // 推送之前在校验一次
-                if(cache.containsKey(fileId)){
+                if(cache.contains(fileId)){
                     cache.remove(fileId);
                     scheduler.shutdown();
                     return;
                 }
                 FileParseProgressResp data = FileParseProgressResp.builder()
+                    .fileId(fileId)
                     .parseProgress(progress)
                     .build();
-                WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
+                WebsocketPush.pushMessage(data);
             }else {
                 scheduler.shutdown();
             }
@@ -84,9 +83,10 @@ public class ProcessProgressSupport {
 
     public static void notifyParseComplete(Long fileId) {
         FileParseProgressResp data = FileParseProgressResp.builder()
+            .fileId(fileId)
             .parseProgress(100)
             .build();
-        WebSocketSender.sendByKey(fileId.toString(), JsonMessageDO.data(null, data));
+        WebsocketPush.pushMessage(data);
     }
 
 
