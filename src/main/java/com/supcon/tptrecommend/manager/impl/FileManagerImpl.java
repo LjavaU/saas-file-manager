@@ -336,7 +336,14 @@ public class FileManagerImpl implements FileManager {
         Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id -> {
             body.getData().put("userId", String.valueOf(LoginUserUtils.getLoginUserInfo().getId()));
         });
-        return fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
+        // TODO:: 临时处理过滤文件夹
+        IPage<FileObjectResp> convert = fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
+        List<FileObjectResp> records = convert.getRecords();
+        records = records.stream()
+            .filter(fileObjectResp -> !fileObjectResp.getObjectName().endsWith("/"))
+            .collect(Collectors.toList());
+        convert.setRecords(records);
+        return convert;
     }
 
     /**
