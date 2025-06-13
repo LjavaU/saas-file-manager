@@ -210,6 +210,9 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             for (Object o : dataArray) {
                 JSONObject componentObj = (JSONObject) o;
                 JSONArray ComponentArray = componentObj.getJSONArray("组分");
+                if(CollectionUtil.isEmpty(ComponentArray)){
+                    continue;
+                }
                 for (Object object : ComponentArray) {
                     JSONObject componentObject = (JSONObject) object;
                     TmpLabelComponentCreateReq tmpLabelComponentCreateReq = new TmpLabelComponentCreateReq();
