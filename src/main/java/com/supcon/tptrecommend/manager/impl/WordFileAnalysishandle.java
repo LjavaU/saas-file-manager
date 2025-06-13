@@ -1,14 +1,23 @@
 package com.supcon.tptrecommend.manager.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.supcon.systemcommon.entity.SupRequestBody;
+import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.WebsocketPush;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.dto.FileParse.FileParseProgressResp;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.LlmFeign;
+import com.supcon.tptrecommend.feign.TempLabelFeign;
 import com.supcon.tptrecommend.feign.entity.FileParseReq;
 import com.supcon.tptrecommend.feign.entity.FileParseResp;
+import com.supcon.tptrecommend.feign.entity.TmpLabelComponentCreateReq;
+import com.supcon.tptrecommend.feign.entity.TmpLabelDeviceCreateReq;
 import com.supcon.tptrecommend.manager.FileAnalysisHandle;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +35,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
@@ -36,6 +47,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
     private final RestTemplate restTemplate = new RestTemplate();
     private final IFileObjectService fileObjectService;
     private final LlmFeign llmFeign;
+    private final TempLabelFeign tempLabelFeign;
 
     @Value("${service.llm.address:localhost}")
     private String llmUrl;
@@ -76,7 +88,13 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         String headMarkdownContent = content.substring(0, Math.min(segmentSize, content.length()));
         String previousSegment = ""; // 初始化为空字符串，用于处理第一段
         int lastReportedProgress = 0;
+        // 存储结果的数组
+        JSONArray resultArray = new JSONArray();
         for (int i = 0; i < totalSegments; i++) {
+            // TODO:// 限制段数
+            if (i == 2) {
+                break;
+            }
             // 推送分段进度
             int Progress = recordTaskProgress(i, totalSegments, fileId, lastReportedProgress);
             int start = i * segmentSize;
@@ -94,6 +112,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                 FileParseResp parse = llmFeign.parse(request);
                 if (parse != null && parse.getData() != null) {
                     JSONArray data = parse.getData();
+                    resultArray.addAll(data);
                     System.out.println("处理成功，返回数据: " + data);
                 } else {
                     System.out.println("API调用成功，但返回数据为空。");
@@ -106,13 +125,114 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             previousSegment = currentSegment;
             lastReportedProgress = Progress;
         }
+        Set<TmpLabelDeviceCreateReq> devices = Sets.newHashSet();
+        buildData(resultArray, devices);
+        if (!devices.isEmpty()) {
+            SupResult<Boolean> supResult = tempLabelFeign.addDevice(SupRequestBody.data(new ArrayList<>(devices)));
+            if (supResult.getSuccess()) {
+                log.info("装置数据保存成功");
+            } else {
+                log.error("装置数据保存失败");
+            }
+
+        }
         ProcessProgressSupport.notifyParseComplete(fileId);
+    }
+
+    public void buildData(JSONArray dataArray, Set<TmpLabelDeviceCreateReq> devices) {
+        if (CollectionUtil.isEmpty(dataArray)) {
+            return;
+        }
+        JSONObject jsonObject = dataArray.getJSONObject(0);
+        if (jsonObject.containsKey("操作规程") && jsonObject.containsKey("子环节") && jsonObject.containsKey("装置组")) {
+            for (Object sourceObj : dataArray) {
+                JSONObject jsObj = (JSONObject) sourceObj;
+                JSONArray deviceArray = jsObj.getJSONArray("装置组");
+                if (CollectionUtil.isNotEmpty(deviceArray)) {
+                    deviceArray.forEach(o -> {
+                        JSONObject deviceObject = (JSONObject) o;
+                        TmpLabelDeviceCreateReq tmpLabelDeviceCreateReq = new TmpLabelDeviceCreateReq();
+                        tmpLabelDeviceCreateReq.setDeviceName(deviceObject.getStr("装置名称"));
+                        tmpLabelDeviceCreateReq.setDeviceTag(deviceObject.getStr("装置位号"));
+                        tmpLabelDeviceCreateReq.setDeviceId(RandomUtil.randomInt());
+                        devices.add(tmpLabelDeviceCreateReq);
+                    });
+                }
+                JSONArray subLinks = jsObj.getJSONArray("子环节");
+                for (Object subLink : subLinks) {
+                    JSONObject subLinkObject = (JSONObject) subLink;
+                    // 获取子环节的装置组
+                    JSONArray sublinkDeviceArray = subLinkObject.getJSONArray("装置组");
+                    if (CollectionUtil.isNotEmpty(sublinkDeviceArray)) {
+                        sublinkDeviceArray.forEach(o -> {
+                            JSONObject deviceObject = (JSONObject) o;
+                            TmpLabelDeviceCreateReq tmpLabelDeviceCreateReq = new TmpLabelDeviceCreateReq();
+                            tmpLabelDeviceCreateReq.setDeviceName(deviceObject.getStr("装置名称"));
+                            tmpLabelDeviceCreateReq.setDeviceTag(deviceObject.getStr("装置位号"));
+                            tmpLabelDeviceCreateReq.setDeviceId(RandomUtil.randomInt());
+                            devices.add(tmpLabelDeviceCreateReq);
+                        });
+                    }
+                    JSONArray sublinksArray = subLinkObject.getJSONArray("子环节");
+                    buildData(sublinksArray, devices);
+                }
+
+            }
+        } else if (jsonObject.containsKey("工艺指标名") && jsonObject.containsKey("指标类型") && jsonObject.containsKey("组分")) {
+            List<TmpLabelComponentCreateReq> componentCreateReqs = Lists.newArrayList();
+            for (Object o : dataArray) {
+                JSONObject componentObj = (JSONObject) o;
+                JSONArray ComponentArray = componentObj.getJSONArray("组分");
+                for (Object object : ComponentArray) {
+                    JSONObject componentObject = (JSONObject) object;
+                    TmpLabelComponentCreateReq tmpLabelComponentCreateReq = new TmpLabelComponentCreateReq();
+                    tmpLabelComponentCreateReq.setCompName(componentObject.getStr("组分名"));
+                    tmpLabelComponentCreateReq.setCompRatio(componentObject.getFloat("组成"));
+                    tmpLabelComponentCreateReq.setCompId(RandomUtil.randomInt());
+                    componentCreateReqs.add(tmpLabelComponentCreateReq);
+                }
+            }
+            if (!componentCreateReqs.isEmpty()) {
+                SupResult<Boolean> supResult = tempLabelFeign.addComponent(SupRequestBody.data(componentCreateReqs));
+                if (supResult.getSuccess()) {
+                    log.info("组分数据保存成功");
+                } else {
+                    log.error("组分保存失败");
+                }
+            }
+
+
+        } /*else if (jsonObject.containsKey("工艺指标名") && jsonObject.containsKey("指标类型") && jsonObject.containsKey("项组")) {
+            JSONArray itemArray = jsonObject.getJSONArray("项组");
+            List<TmpLabelTargetCreateReq> labelTargetCreateReqs = Lists.newArrayList();
+            for (Object o : itemArray) {
+                JSONObject itemObj = (JSONObject) o;
+                JSONArray childItemArray = itemObj.getJSONArray("子项组");
+                for (Object object : childItemArray) {
+                    JSONObject childItemObj = (JSONObject) object;
+                    TmpLabelTargetCreateReq tmpLabelTargetCreateReq = new TmpLabelTargetCreateReq();
+                    tmpLabelTargetCreateReq.setTargetName(childItemObj.getStr("子项名"));
+                    tmpLabelTargetCreateReq.setTargetDesc(childItemObj.getStr("项描述"));
+                    labelTargetCreateReqs.add(tmpLabelTargetCreateReq);
+
+                }
+            }
+          *//*  if (!labelTargetCreateReqs.isEmpty()) {
+                SupResult<Boolean> supResult = tempLabelFeign.addItem(SupRequestBody.data(labelTargetCreateReqs));
+                if (supResult.getSuccess()) {
+                    log.info("子项列表保存成功");
+                } else {
+                    log.error("子项列表保存失败");
+                }
+            }*//*
+
+        }*/
     }
 
     /**
      * 模拟一个任务的处理进度
      *
-     * @param i                    我
+     * @param i                    任务索引
      * @param totalSteps           总步数
      * @param fileId               文件 ID
      * @param lastReportedProgress 上次报告进度

@@ -44,5 +44,7 @@ service:
     address: http://10.16.11.21:9002
   dataHub:
     address: http://data-hub-obp-dev.supcon5t.com
+  tempLabel:
+    address: http://10.30.75.82:8080
 # 或者，如果你想看所有 Feign 客户端的（日志量会很大）
 # feign.Logger$Level: DEBUG

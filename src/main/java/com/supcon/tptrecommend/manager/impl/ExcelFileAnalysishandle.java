@@ -35,7 +35,8 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     private final FileParseManager fileParseManager;
     private final DataHubFeign dataHubFeign;
     private final LlmFeign llmFeign;
-    public static final Set<Long> CACHE = Sets.newConcurrentHashSet();;
+    public static final Set<Long> CACHE = Sets.newConcurrentHashSet();
+    ;
 
     @Override
     public void handleFileAnalysis(byte[] bytes, Long fileId) {
@@ -78,6 +79,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             .markdownContent(markdown)
             .headMarkdownContent(headMarkdown)
             .documentType("excel")
+            .previousMarkdownContent("")
             .build());
         if (parse != null) {
             CACHE.add(fileId);
