@@ -3,6 +3,7 @@ package com.supcon.tptrecommend.dto.fileobject;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Data
@@ -11,6 +12,8 @@ public class Folder {
 
     private Long id;
     private String name;
+    private LocalDateTime uploadTime;
+    private Integer fileCount;
 
     @Override
     public boolean equals(Object o) {

@@ -44,4 +44,7 @@ public class FileNodeResp {
     @ApiModelProperty(value = "文件解析状态，【0-未解析，1-解析完成，2-解释失败】")
     private Integer fileStatus;
 
+    @ApiModelProperty(value = "文件夹下的文件数量")
+    private Integer fileCount;
+
 }

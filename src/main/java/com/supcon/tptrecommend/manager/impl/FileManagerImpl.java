@@ -1,29 +1,22 @@
 package com.supcon.tptrecommend.manager.impl;
 
-import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONArray;
-import cn.hutool.json.JSONObject;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
-import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemcommon.exception.SupException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
+import com.supcon.tptrecommend.common.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
-import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
-import com.supcon.tptrecommend.feign.DataHubFeign;
-import com.supcon.tptrecommend.feign.LlmFeign;
-import com.supcon.tptrecommend.feign.entity.*;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.FileParseManager;
 import com.supcon.tptrecommend.service.IFileObjectService;
@@ -44,8 +37,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -64,19 +55,13 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileObjectService fileObjectService;
 
-
-    private final LlmFeign llmFeign;
-
-
-    private final DataHubFeign dataHubFeign;
-
     private final Executor EXECUTOR = new ThreadPoolExecutor(4, 8,
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
     private final FileParseManager fileParseManager;
 
-    public static final Map<Long, FileParseResp> CACHE = new ConcurrentHashMap<>();
+    private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
 
     /**
@@ -90,7 +75,7 @@ public class FileManagerImpl implements FileManager {
      */
     @SneakyThrows
     @Override
-    public FileObjectResp upload(MultipartFile file, String attributes,String path) {
+    public FileObjectResp upload(MultipartFile file, String attributes, String path) {
         // 2. 生成对象键 (Object Key)
         String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
         // 3. 生成唯一文件名
@@ -102,7 +87,7 @@ public class FileManagerImpl implements FileManager {
             if (!path.endsWith(FILE_SPLIT)) {
                 path += FILE_SPLIT;
             }
-            objectKey = path + uniqueFilename;
+            objectKey = getPath(user) + path + uniqueFilename;
         } else {
             objectKey = getPath(user) + uniqueFilename;
         }
@@ -110,15 +95,76 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
+        // TODO: 大对象内存溢出问题
         byte[] bytes = file.getBytes();
         if (StrUtil.isBlank(attributes)) {
             CompletableFuture.runAsync(() -> {
-                handleFileAnalysis(bytes,fileId);
+                fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
+                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(bytes, fileId));
             }, EXECUTOR);
 
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
+
+    public String getFileSuffix(String originalFilename) {
+        if (originalFilename == null) {
+            return "";
+        }
+
+        int dotIndex = originalFilename.lastIndexOf('.');
+        if (dotIndex == -1) {
+            return ""; // 无后缀
+        }
+
+        return originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
+    }
+
+  /*  private void saveFileTemporary(MultipartFile file){
+        try {
+            String TEMP_UPLOAD_DIR = "D:/temp/uploads/";
+            // 确保目录存在
+            File uploadDir = new File(TEMP_UPLOAD_DIR);
+            if (!uploadDir.exists()) {
+                uploadDir.mkdirs();
+            }
+
+            // 创建一个唯一的目标文件路径
+            String originalFilename = file.getOriginalFilename();
+            Path destinationFile = Paths.get(TEMP_UPLOAD_DIR, System.currentTimeMillis() + "-" + originalFilename);
+
+            // 立即将文件保存到目标路径
+            file.transferTo(destinationFile);
+
+            // 将文件路径传递给异步方法
+            asyncFileService.processFilePath(destinationFile);
+
+        } catch (IOException e) {
+        }
+    }
+
+    public void processFilePath(Path filePath) {
+        // 异步方法根据路径读取和处理文件
+        System.out.println("Processing file at path: " + filePath + " in thread: " + Thread.currentThread().getName());
+
+        try (InputStream inputStream = Files.newInputStream(filePath)) {
+            // ... 在这里处理文件流 ...
+            // 模拟耗时操作
+            Thread.sleep(5000);
+        } catch (IOException | InterruptedException e) {
+            Thread.currentThread().interrupt();
+            // 处理异常
+        } finally {
+            // 重要：处理完后，根据业务需要决定是否删除这个临时保存的文件
+            try {
+                Files.delete(filePath);
+                System.out.println("Cleaned up file: " + filePath);
+            } catch (IOException e) {
+                // log a warning
+            }
+        }
+        System.out.println("Finished processing file at path: " + filePath);
+    }*/
 
 
     private void uploadToMinio(MultipartFile file, String objectKey) {
@@ -140,148 +186,6 @@ public class FileManagerImpl implements FileManager {
             .contentType(file.getContentType())
             .fileSize(file.getSize())
             .build());
-    }
-
-
-    /**
-     * 使用LLM进行文件解析
-     *
-     * @param fileId           文件 ID
-     * @param markdown         Markdown
-     * @param originalFilename 原始文件名
-     * @param headMarkdown     头部 Markdown
-     * @author luhao
-     * @date 2025/06/05 18:31:00
-     */
-    private void parseWithLLM(Long fileId, String markdown, String originalFilename, String headMarkdown) {
-        FileParseResp parse = llmFeign.parse(FileParseReq.builder()
-            .markdownContent(markdown)
-            .headMarkdownContent(headMarkdown)
-            .build());
-        if (parse != null) {
-            CACHE.put(fileId, parse);
-            String category = FileObject.Category.getValueByCode(parse.getCategory());
-            updateFileParseSuccess(fileId, category, parse.getSummary());
-            ProcessProgressSupport.notifyParseComplete(fileId);
-            buildDataAndSave(parse.getData(), originalFilename);
-        } else {
-            log.error("{}文件，大模型分析失败", originalFilename);
-            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-            ProcessProgressSupport.notifyParseComplete(fileId);
-        }
-    }
-
-    public void buildDataAndSave(JSONArray dataArray, String originalFilename) {
-        if (CollectionUtil.isNotEmpty(dataArray)) {
-            JSONObject obj = dataArray.getJSONObject(0);
-            if (obj.containsKey("位号名称") && obj.containsKey("位号描述")) {
-                List<TagInfoCreateReq> tagInfoCreateReqs = dataArray.stream().map(o -> {
-                    JSONObject dataObj = (JSONObject) o;
-                    TagInfoCreateReq tagInfoCreateReq = new TagInfoCreateReq();
-                    tagInfoCreateReq.setTagName(dataObj.getStr("位号名称"));
-                    tagInfoCreateReq.setTagDesc(dataObj.getStr("位号描述") + "_来源:" + originalFilename);
-                    tagInfoCreateReq.setTagType(4);
-                    tagInfoCreateReq.setUnit(dataObj.getStr("位号单位"));
-                    return tagInfoCreateReq;
-                }).collect(Collectors.toList());
-                SupResult<List<TagInfoResp>> result = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
-                if (result.getSuccess()) {
-                    log.info("位号数据保存成功");
-                } else {
-                    log.error("位号数据保存失败");
-                }
-
-            } else if (obj.containsKey("TIME")) {
-                List<TagValueDTO> tagValueDTOS = dataArray.stream().map(o -> {
-                    JSONObject dataObj = (JSONObject) o;
-                    String time = dataObj.getStr("TIME");
-                    Set<String> tagNames = dataObj.keySet();
-                    tagNames.remove("TIME");
-                    return tagNames.stream().map(tagName -> {
-                        TagValueDTO tagValueDTO = new TagValueDTO();
-                        tagValueDTO.setTagName(tagName);
-                        tagValueDTO.setTagValue(dataObj.get(tagName));
-                        tagValueDTO.setTagTime(LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")));
-                        tagValueDTO.setAppTime(LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")));
-                        tagValueDTO.setQuality(192L);
-                        return tagValueDTO;
-                    }).collect(Collectors.toList());
-                }).flatMap(Collection::stream).collect(Collectors.toList());
-                SupResult<Boolean> booleanSupResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
-                if (booleanSupResult.getSuccess()) {
-                    log.info("位号历史数据保存成功");
-                } else {
-                    log.error("数据历史保存失败");
-                }
-
-            } else if (obj.containsKey("回路名称") && obj.containsKey("回路描述")) {
-                List<TagInfoCreateReq> tagInfoCreateReqs = dataArray.stream().map(o -> {
-                        JSONObject dataObj = (JSONObject) o;
-                        List<TagInfoCreateReq> tags = new ArrayList<>();
-                        TagInfoCreateReq tagInfoCreateReq = new TagInfoCreateReq();
-                        tagInfoCreateReq.setTagName(dataObj.getStr("测量值位号"));
-                        tagInfoCreateReq.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq.setTagType(4);
-                        tags.add(tagInfoCreateReq);
-                        TagInfoCreateReq tagInfoCreateReq2 = new TagInfoCreateReq();
-                        tagInfoCreateReq2.setTagName(dataObj.getStr("设定值位号"));
-                        tagInfoCreateReq2.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq2.setTagType(4);
-                        tags.add(tagInfoCreateReq2);
-                        TagInfoCreateReq tagInfoCreateReq3 = new TagInfoCreateReq();
-                        tagInfoCreateReq3.setTagName(dataObj.getStr("阀位值位号"));
-                        tagInfoCreateReq3.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq3.setTagType(4);
-                        tags.add(tagInfoCreateReq3);
-                        TagInfoCreateReq tagInfoCreateReq4 = new TagInfoCreateReq();
-                        tagInfoCreateReq4.setTagName(dataObj.getStr("控制模式位号"));
-                        tagInfoCreateReq4.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq4.setTagType(4);
-                        tags.add(tagInfoCreateReq4);
-                        TagInfoCreateReq tagInfoCreateReq5 = new TagInfoCreateReq();
-                        tagInfoCreateReq5.setTagName(dataObj.getStr("比例位号"));
-                        tagInfoCreateReq5.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq5.setTagType(4);
-                        tags.add(tagInfoCreateReq5);
-                        TagInfoCreateReq tagInfoCreateReq6 = new TagInfoCreateReq();
-                        tagInfoCreateReq6.setTagName(dataObj.getStr("积分位号"));
-                        tagInfoCreateReq6.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq6.setTagType(4);
-                        tags.add(tagInfoCreateReq6);
-                        TagInfoCreateReq tagInfoCreateReq7 = new TagInfoCreateReq();
-                        tagInfoCreateReq7.setTagName(dataObj.getStr("微分位号"));
-                        tagInfoCreateReq7.setTagDesc(dataObj.getStr("回路描述") + "_来源:" + originalFilename);
-                        tagInfoCreateReq7.setTagType(4);
-                        tags.add(tagInfoCreateReq7);
-                        return tags;
-                    }).flatMap(Collection::stream)
-                    .collect(Collectors.toList());
-                SupResult<List<TagInfoResp>> result = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
-                if (result.getSuccess()) {
-                    log.info("回路数据保存成功");
-                } else {
-                    log.error("回路数据保存失败");
-                }
-
-            }
-        }
-
-    }
-
-    private void updateFileParseSuccess(Long fileId, String category, String summary) {
-        FileObject fileObject = new FileObject();
-        fileObject.setId(fileId);
-        fileObject.setCategory(category);
-        fileObject.setContentOverview(summary);
-        fileObject.setFileStatus(FileObject.FileStatus.PARSED.getValue());
-        fileObjectService.updateById(fileObject);
-    }
-
-    private void updateFileStatus(Long fileId, Integer status) {
-        FileObject fileObject = new FileObject();
-        fileObject.setId(fileId);
-        fileObject.setFileStatus(status);
-        fileObjectService.updateById(fileObject);
     }
 
 
@@ -342,7 +246,13 @@ public class FileManagerImpl implements FileManager {
         Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id -> {
             body.getData().put("userId", String.valueOf(LoginUserUtils.getLoginUserInfo().getId()));
         });
-        return fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
+        IPage<FileObjectResp> convert = fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
+        List<FileObjectResp> records = convert.getRecords();
+        records = records.stream()
+            .filter(fileObjectResp -> !fileObjectResp.getObjectName().endsWith("/"))
+            .collect(Collectors.toList());
+        convert.setRecords(records);
+        return convert;
     }
 
     /**
@@ -392,43 +302,6 @@ public class FileManagerImpl implements FileManager {
         return FileObjectConvert.INSTANCE.convert(fileObject);
 
     }
-
-    /**
-     * 调用大模型进行文件分析
-     *
-     * @param bytes  字节
-     * @param fileId 文件 ID
-     * @author luhao
-     * @since 2025/06/09 18:16:20
-     */
-    public void handleFileAnalysis(byte[] bytes, Long fileId) {
-        FileObject fileObject = fileObjectService.getById(fileId);
-        String originalFilename = fileObject.getOriginalName();
-        if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
-            // 模拟的方式推送处理进度
-            ProcessProgressSupport.notifyProcessProgress(fileId);
-            String fullContentMarkdown;
-            String headMarkdown;
-            try {
-                fullContentMarkdown = fileParseManager.parseBytesToMarkdown(bytes, originalFilename, false);
-                headMarkdown = fileParseManager.parseBytesToMarkdown(bytes,originalFilename,true);
-            } catch (Exception e) {
-                log.error("文件解析失败：{}", originalFilename, e);
-                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-                ProcessProgressSupport.notifyParseComplete(fileId);
-                return;
-            }
-            if (StrUtil.isAllNotBlank(fullContentMarkdown, headMarkdown)) {
-                  parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
-            } else {
-                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
-                ProcessProgressSupport.notifyParseComplete(fileId);
-            }
-
-
-        }
-    }
-
 
     /**
      * 批量删除
@@ -491,6 +364,8 @@ public class FileManagerImpl implements FileManager {
         List<FileNodeResp> fileNodes = new ArrayList<>();
         // 用于临时存储直接子文件夹的名称，利用Set自动去重
         Set<Folder> folderNames = new HashSet<>();
+        // 用于记录已经计数过的文件名
+        Set<String> counted = new HashSet<>();
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
             // 移除前缀，得到相对路径
@@ -510,9 +385,18 @@ public class FileManagerImpl implements FileManager {
                 // 包含'/'，说明在子文件夹下
                 // 我们只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, slashIndex);
+                if (counted.contains(folderName)) {
+                    continue;
+                }
+                counted.add(folderName);
+                // 获取该文件夹下的文件数量
+                int count = minioUtils.countFilePrefix(bucket, path + folderName);
                 folderNames.add(Folder.builder()
                     .id(fileObject.getId())
+                    .uploadTime(fileObject.getCreateTime())
                     .name(folderName)
+                    .fileCount(count)
+
                     .build());
             }
 
@@ -523,15 +407,15 @@ public class FileManagerImpl implements FileManager {
             node.setId(folder.getId());
             node.setType("folder");
             node.setName(folder.getName());
+            node.setUploadTime(folder.getUploadTime());
+            node.setFileCount(folder.getFileCount());
             // 文件夹的路径要以'/'结尾
             node.setPath(path + folder.getName() + FILE_SPLIT);
             fileNodes.add(node);
         }
 
         // 可以按类型和名称排序，让文件夹显示在前面
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed()
-            .thenComparing(Comparator.comparing(FileNodeResp::getUploadTime).reversed()));
-
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getUploadTime).reversed());
         return fileNodes;
     }
 
@@ -552,11 +436,11 @@ public class FileManagerImpl implements FileManager {
     }
 
     private BigDecimal mapFileSize(Long fileSize) {
-        BigDecimal divide = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 2, RoundingMode.HALF_UP);
+        BigDecimal divide = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 2, RoundingMode.HALF_UP);
         if (divide.compareTo(BigDecimal.ZERO) == 0) {
-            BigDecimal div = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 4, RoundingMode.HALF_UP);
+            BigDecimal div = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 4, RoundingMode.HALF_UP);
             if (div.compareTo(BigDecimal.ZERO) == 0) {
-                return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024), 6, RoundingMode.HALF_UP);
+                return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 6, RoundingMode.HALF_UP);
             } else {
                 return div;
             }

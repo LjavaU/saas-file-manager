@@ -44,9 +44,5 @@ service:
     address: http://10.16.11.21:9002
   dataHub:
     address: http://data-hub-obp-dev.supcon5t.com
-logging:
-  level:
-    # 替换成你的 Feign Client 接口所在的包名
-    com.supcon.tptrecommend.LlmFeign: DEBUG
 # 或者，如果你想看所有 Feign 客户端的（日志量会很大）
 # feign.Logger$Level: DEBUG

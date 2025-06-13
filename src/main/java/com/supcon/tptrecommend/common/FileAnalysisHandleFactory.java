@@ -1,0 +1,47 @@
+package com.supcon.tptrecommend.common;
+
+import com.supcon.tptrecommend.manager.FileAnalysisHandle;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+import java.util.*;
+
+@Component
+@RequiredArgsConstructor
+public class FileAnalysisHandleFactory {
+    // 关键：Spring会自动将所有PromotionStrategy的实现类注入到这个List中
+    private final List<FileAnalysisHandle> fileAnalysisHandles;
+
+    // 使用EnumMap效率更高，且能保证key的完整性
+    private final Map<String, FileAnalysisHandle> strategyMap = new HashMap<>();
+
+
+    @PostConstruct
+    public void init() {
+        if (fileAnalysisHandles != null) {
+            for (FileAnalysisHandle handler : fileAnalysisHandles) {
+                Set<String> supportedTypes = handler.getSupportedTypes();
+                if (supportedTypes != null) {
+                    for (String type : supportedTypes) {
+                        // 将文件类型转换为大写，以便进行不区分大小写的查找
+                        strategyMap.put(type.toUpperCase(), handler);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 根据文件类型（后缀）获取对应的处理器。
+     * @param fileType 文件后缀，例如 "jpg", "docx"
+     * @return 对应的处理器Optional
+     */
+    public Optional<FileAnalysisHandle> getHandler(String fileType) {
+        if (fileType == null || fileType.isEmpty()) {
+            return Optional.empty();
+        }
+        // 使用大写进行查找，实现不区分大小写
+        return Optional.ofNullable(strategyMap.get(fileType.toUpperCase()));
+    }
+}

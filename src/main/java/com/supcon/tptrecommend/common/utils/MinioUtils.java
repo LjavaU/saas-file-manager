@@ -149,7 +149,7 @@ public class MinioUtils {
      * @param objectName 对象名称（文件在 MinIO 中的路径）
      */
     public void removeFile(String bucketName, String objectName) {
-        if(objectName.endsWith("/")){
+        if (objectName.endsWith("/")) {
             deleteFolder(bucketName, objectName);
             return;
         }
@@ -166,12 +166,13 @@ public class MinioUtils {
 
     /**
      * 删除文件夹
+     *
      * @param bucketName 存储桶名称
      * @param folderPath 文件夹路径
      * @author luhao
      * @since 2025/06/12 15:17:28
      */
-    public void deleteFolder(String bucketName, String folderPath)  {
+    public void deleteFolder(String bucketName, String folderPath) {
         Iterable<Result<Item>> objects = minioClient.listObjects(
             ListObjectsArgs.builder()
                 .bucket(bucketName)
@@ -362,4 +363,42 @@ public class MinioUtils {
     }
 
 
+    /**
+     * 以前缀开始统计文件数量
+     *
+     * @param bucketName 存储桶名称
+     * @param prefix     前缀
+     * @return int
+     * @author luhao
+     * @since 2025/06/12 18:43:29
+     */
+    public int countFilePrefix(String bucketName, String prefix) {
+        // 确保 folderName 以斜杠结尾
+        if (!prefix.endsWith("/")) {
+            prefix += "/";
+        }
+        Iterable<Result<Item>> objectsIterator = minioClient.listObjects(
+            ListObjectsArgs.builder()
+                .bucket(bucketName)
+                .prefix(prefix)
+                .recursive(true)
+                .build());
+        // 获取objectsIterator数量
+        int count = 0;
+        for (Result<Item> result : objectsIterator) {
+            try {
+                Item item = result.get();
+                if(item.size()==0){
+                    continue;
+                }
+                if (!item.isDir()) {
+                    // 选项2: 仅统计文件（不包含文件夹）
+                    count++;
+                }
+            } catch (Exception e) {
+                log.error("统计对象失败: {}", e.getMessage());
+            }
+        }
+        return count;
+    }
 }

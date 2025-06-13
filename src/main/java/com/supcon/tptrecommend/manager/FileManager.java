@@ -21,10 +21,10 @@ public interface FileManager {
      *
      * @param multipartFile Multipart 文件
      * @param attributes
-     * @param path
+     * @param path  文件路径
      * @return {@link Boolean }
      * @author luhao
-     * @date 2025/05/22 15:36:07
+     * @since 2025/06/12 16:26:40
      */
     FileObjectResp upload(MultipartFile multipartFile, String attributes,String path);
 
