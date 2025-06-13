@@ -142,7 +142,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             if (supResult.getSuccess()) {
                 log.info("装置数据保存成功");
             } else {
-                log.error("装置数据保存失败");
+                log.error("装置数据保存失败:{}",supResult.getMsg());
             }
 
         }
