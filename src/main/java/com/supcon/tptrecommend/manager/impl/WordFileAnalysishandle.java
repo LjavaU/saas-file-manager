@@ -70,8 +70,6 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                 String content = new String(fileBytes, charset);
                 doAnalysis(content, fileId);
             }
-
-
         }
 
 
@@ -90,6 +88,8 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         int lastReportedProgress = 0;
         // 存储结果的数组
         JSONArray resultArray = new JSONArray();
+        String category = "";
+        String summary = "";
         for (int i = 0; i < totalSegments; i++) {
             // TODO:// 限制段数
             if (i == 2) {
@@ -111,6 +111,8 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                     .build();
                 FileParseResp parse = llmFeign.parse(request);
                 if (parse != null && parse.getData() != null) {
+                    category = parse.getCategory();
+                    summary = parse.getSummary();
                     JSONArray data = parse.getData();
                     resultArray.addAll(data);
                     System.out.println("处理成功，返回数据: " + data);
@@ -125,6 +127,14 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             previousSegment = currentSegment;
             lastReportedProgress = Progress;
         }
+        if (resultArray.isEmpty()) {
+            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+            ProcessProgressSupport.notifyParseComplete(fileId);
+            return;
+        } else {
+            updateFileParseSuccess(fileId, FileObject.Category.getValueByCode(category), summary);
+            ProcessProgressSupport.notifyParseComplete(fileId);
+        }
         Set<TmpLabelDeviceCreateReq> devices = Sets.newHashSet();
         buildData(resultArray, devices);
         if (!devices.isEmpty()) {
@@ -132,12 +142,29 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             if (supResult.getSuccess()) {
                 log.info("装置数据保存成功");
             } else {
-                log.error("装置数据保存失败");
+                log.error("装置数据保存失败:{}",supResult.getMsg());
             }
 
         }
-        ProcessProgressSupport.notifyParseComplete(fileId);
+
     }
+
+    private void updateFileStatus(Long fileId, Integer status) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setFileStatus(status);
+        fileObjectService.updateById(fileObject);
+    }
+
+    private void updateFileParseSuccess(Long fileId, String category, String summary) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setCategory(category);
+        fileObject.setContentOverview(summary);
+        fileObject.setFileStatus(FileObject.FileStatus.PARSED.getValue());
+        fileObjectService.updateById(fileObject);
+    }
+
 
     public void buildData(JSONArray dataArray, Set<TmpLabelDeviceCreateReq> devices) {
         if (CollectionUtil.isEmpty(dataArray)) {
