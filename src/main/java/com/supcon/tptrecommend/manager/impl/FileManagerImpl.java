@@ -101,7 +101,10 @@ public class FileManagerImpl implements FileManager {
             CompletableFuture.runAsync(() -> {
                 fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
                     .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(bytes, fileId));
-            }, EXECUTOR);
+            }, EXECUTOR).exceptionally(throwable -> {
+                log.error("发送给大模型文件解析失败", throwable);
+                return null;
+            });
 
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
