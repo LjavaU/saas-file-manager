@@ -1,5 +1,6 @@
 package com.supcon.tptrecommend.common;
 
+import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.tptrecommend.manager.FileAnalysisHandle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -34,7 +35,7 @@ public class FileAnalysisHandleFactory {
 
     /**
      * 根据文件类型（后缀）获取对应的处理器。
-     * @param fileType 文件后缀，例如 "jpg", "docx"
+     * @param fileType 文件后缀，例如 "xls", "docx"
      * @return 对应的处理器Optional
      */
     public Optional<FileAnalysisHandle> getHandler(String fileType) {
@@ -42,6 +43,10 @@ public class FileAnalysisHandleFactory {
             return Optional.empty();
         }
         // 使用大写进行查找，实现不区分大小写
-        return Optional.ofNullable(strategyMap.get(fileType.toUpperCase()));
+        FileAnalysisHandle value = strategyMap.get(fileType.toUpperCase());
+        if (value == null) {
+            throw new ClientException("不支持的文件类型：" + fileType);
+        }
+        return Optional.of(value);
     }
 }

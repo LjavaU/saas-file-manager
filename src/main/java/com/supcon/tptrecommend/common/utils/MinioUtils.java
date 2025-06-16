@@ -226,10 +226,22 @@ public class MinioUtils {
      * @date 2025/06/04 19:35:28
      */
     public void removeFiles(String bucketName, List<String> objectNames) {
+        //  删除文件夹
+        List<String> folders = objectNames.stream().filter(s -> s.endsWith("/")).collect(Collectors.toList());
+        if (!folders.isEmpty()) {
+            for (String folder : folders) {
+                deleteFolder(bucketName, folder);
+            }
+        }
+        // 移除文件夹目录
+        objectNames.removeAll(folders);
+        if (objectNames.isEmpty()) {
+            return;
+        }
+        // 删除文件
         List<DeleteObject> objectsToDelete = objectNames.stream()
             .map(DeleteObject::new)
             .collect(Collectors.toList());
-
         try {
             minioClient.removeObjects(
                     RemoveObjectsArgs.builder()
@@ -350,16 +362,6 @@ public class MinioUtils {
         } catch (Exception e) {
             log.error("创建文件夹:{}失败: ", folderName, e);
         }
-    }
-
-    public Iterable<Result<Item>> listObjects(String bucketName, String path) {
-        // 使用 listObjects 来获取文件和文件夹
-        return minioClient.listObjects(
-            ListObjectsArgs.builder()
-                .bucket(bucketName)
-                .prefix(path) // 设置查询的前缀（即当前“目录”）
-                .delimiter("/") // 使用'/'作为分隔符来模拟文件夹
-                .build());
     }
 
 
