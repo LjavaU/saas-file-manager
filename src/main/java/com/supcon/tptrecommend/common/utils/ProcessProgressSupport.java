@@ -29,7 +29,7 @@ public class ProcessProgressSupport {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         Set<Long> cache = ExcelFileAnalysishandle.CACHE;
         scheduler.scheduleAtFixedRate(() -> {
-            if(cache.contains(fileId)){
+            if (cache.contains(fileId)) {
                 cache.remove(fileId);
                 scheduler.shutdown();
                 return;
@@ -42,7 +42,7 @@ public class ProcessProgressSupport {
                 }
 
                 // 推送之前在校验一次
-                if(cache.contains(fileId)){
+                if (cache.contains(fileId)) {
                     cache.remove(fileId);
                     scheduler.shutdown();
                     return;
@@ -52,11 +52,13 @@ public class ProcessProgressSupport {
                     .parseProgress(progress)
                     .build();
                 WebsocketPush.pushMessage(data);
-            }else {
+            } else {
+                cache.remove(fileId);
                 scheduler.shutdown();
             }
         }, 0, intervalMs, TimeUnit.MILLISECONDS);
     }
+
     /**
      * 将 totalSum 拆分成 n 个正整数，和为 totalSum。
      */
@@ -88,7 +90,6 @@ public class ProcessProgressSupport {
             .build();
         WebsocketPush.pushMessage(data);
     }
-
 
 
 }

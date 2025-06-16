@@ -261,8 +261,8 @@ public class FileManagerImpl implements FileManager {
             body.getData().put("userId", String.valueOf(LoginUserUtils.getLoginUserInfo().getId()));
         });
 
-        return fileObjectService.pageAutoQuery( new QueryWrapper<FileObject>()
-            .apply("object_name NOT LIKE {0}",  "%/"),
+        return fileObjectService.pageAutoQuery(new QueryWrapper<FileObject>()
+                .apply("object_name NOT LIKE {0}", "%/"),
             body).convert(FileObjectConvert.INSTANCE::convert);
     }
 
@@ -342,11 +342,20 @@ public class FileManagerImpl implements FileManager {
         }
         String path = getPath(user) + folderName;
         minioUtils.createFolder(bucket, path);
-        saveMetadataToDB(user, path);
+        saveFolderToDB(user, path);
         return true;
     }
 
-    private void saveMetadataToDB(LoginInfoUserDTO user, String path) {
+    private void saveFolderToDB(LoginInfoUserDTO user, String path) {
+        // 判断文件是否存在
+        long count = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .likeRight(FileObject::getObjectName, path)
+            .eq(FileObject::getUserId, user.getId())
+            .eq(FileObject::getUserName, user.getUsername()));
+        // 如果存在，则不保存
+        if (count > 0) {
+            return;
+        }
         fileObjectService.saveObj(FileObjectCreateReq.builder()
             .userId(user.getId())
             .userName(user.getUsername())
