@@ -105,9 +105,8 @@ public class FileManagerImpl implements FileManager {
                     .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(bytes, fileId));
             }, EXECUTOR).exceptionally(throwable -> {
                 log.error("文件解析/分析失败", throwable);
-                ProcessProgressSupport.notifyParseComplete(fileId);
                 updateFileStatus(fileId);
-
+                ProcessProgressSupport.notifyParseComplete(fileId);
                 return null;
             });
 
