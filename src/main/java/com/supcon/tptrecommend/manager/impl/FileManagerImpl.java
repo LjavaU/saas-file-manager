@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.manager.impl;
 
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.framework.tenant.core.getter.TenantContext;
@@ -14,6 +15,7 @@ import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
+import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
@@ -102,12 +104,22 @@ public class FileManagerImpl implements FileManager {
                 fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
                     .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(bytes, fileId));
             }, EXECUTOR).exceptionally(throwable -> {
-                log.error("发送给大模型文件解析失败", throwable);
+                log.error("文件解析/分析失败", throwable);
+                ProcessProgressSupport.notifyParseComplete(fileId);
+                updateFileStatus(fileId);
+
                 return null;
             });
 
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
+    }
+
+    private void updateFileStatus(Long fileId) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setFileStatus(FileObject.FileStatus.PARSE_FAILED.getValue());
+        fileObjectService.updateById(fileObject);
     }
 
     public String getFileSuffix(String originalFilename) {
@@ -249,13 +261,10 @@ public class FileManagerImpl implements FileManager {
         Optional.ofNullable(LoginUserUtils.getLoginUserInfo().getId()).ifPresent(id -> {
             body.getData().put("userId", String.valueOf(LoginUserUtils.getLoginUserInfo().getId()));
         });
-        IPage<FileObjectResp> convert = fileObjectService.pageAutoQuery(body).convert(FileObjectConvert.INSTANCE::convert);
-        List<FileObjectResp> records = convert.getRecords();
-        records = records.stream()
-            .filter(fileObjectResp -> !fileObjectResp.getObjectName().endsWith("/"))
-            .collect(Collectors.toList());
-        convert.setRecords(records);
-        return convert;
+
+        return fileObjectService.pageAutoQuery( new QueryWrapper<FileObject>()
+            .apply("object_name NOT LIKE {0}",  "%/"),
+            body).convert(FileObjectConvert.INSTANCE::convert);
     }
 
     /**
