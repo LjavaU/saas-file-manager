@@ -76,6 +76,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
     }
 
     private void doAnalysis(String content, Long fileId) {
+        // TODO: 创建一个分段大小常量，1024 字节
         final int segmentSize = 1024;
         // 2. 使用数学计算和循环来分段
         int totalSegments = (int) Math.ceil((double) content.length() / segmentSize);
@@ -100,7 +101,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             int start = i * segmentSize;
             int end = Math.min((i + 1) * segmentSize, content.length());
             String currentSegment = content.substring(start, end);
-            log.info("LLM正在分析word文档...,一共{}段，正在处理第 {} 段...", segmentSize, i + 1);
+            log.info("LLM正在分析word文档...,一共{}段，正在处理第 {} 段...", totalSegments, i + 1);
             // 4. 增加异常处理
             try {
                 FileParseReq request = FileParseReq.builder()
