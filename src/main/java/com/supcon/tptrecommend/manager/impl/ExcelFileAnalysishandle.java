@@ -86,7 +86,12 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             String category = FileObject.Category.getValueByCode(parse.getCategory());
             updateFileParseSuccess(fileId, category, parse.getSummary());
             ProcessProgressSupport.notifyParseComplete(fileId);
-            buildDataAndSave(parse.getData(), originalFilename);
+            try {
+                buildDataAndSave(parse.getData(), originalFilename);
+            } catch (Exception e) {
+                log.error("excel文档类数据保存失败", e);
+            }
+
         } else {
             log.error("{}文件，大模型分析失败", originalFilename);
             updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());

@@ -100,7 +100,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             int start = i * segmentSize;
             int end = Math.min((i + 1) * segmentSize, content.length());
             String currentSegment = content.substring(start, end);
-            log.info("正在处理第 {} 段...", i + 1);
+            log.info("LLM正在分析word文档...,一共{}段，正在处理第 {} 段...", segmentSize, i + 1);
             // 4. 增加异常处理
             try {
                 FileParseReq request = FileParseReq.builder()
@@ -115,9 +115,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                     summary = parse.getSummary();
                     JSONArray data = parse.getData();
                     resultArray.addAll(data);
-                    System.out.println("处理成功，返回数据: " + data);
-                } else {
-                    System.out.println("API调用成功，但返回数据为空。");
+                    log.info("LLM正在分析word文档...,第{}段，处理完成...", i + 1);
                 }
             } catch (Exception e) {
                 log.error("处理第 {} 段时发生异常: {}", i + 1, e);
@@ -210,7 +208,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             for (Object o : dataArray) {
                 JSONObject componentObj = (JSONObject) o;
                 JSONArray ComponentArray = componentObj.getJSONArray("组分");
-                if(CollectionUtil.isEmpty(ComponentArray)){
+                if (CollectionUtil.isEmpty(ComponentArray)) {
                     continue;
                 }
                 for (Object object : ComponentArray) {
@@ -340,6 +338,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         } catch (Exception e) {
             log.error("调用llm接口：api/file/convert访问出错 ", e);
         }
+
         return null;
     }
 }
