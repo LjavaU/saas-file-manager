@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ProcessProgressSupport {
-
     public static void notifyProcessProgress(Long fileId) {
         int start = 0;
         int endCap = 99;  // 最大不能达到 100
@@ -27,7 +26,7 @@ public class ProcessProgressSupport {
         AtomicInteger stepIndex = new AtomicInteger(0);
         AtomicInteger currentProgress = new AtomicInteger(start);
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        Set<Long> cache = ExcelFileAnalysishandle.CACHE;
+        Set<Long> cache = ExcelFileAnalysishandle.STOP_SIGNAL_CACHE;
         scheduler.scheduleAtFixedRate(() -> {
             if (cache.contains(fileId)) {
                 cache.remove(fileId);
@@ -89,6 +88,10 @@ public class ProcessProgressSupport {
             .parseProgress(100)
             .build();
         WebsocketPush.pushMessage(data);
+    }
+
+    public static void main(String[] args) {
+        ProcessProgressSupport.notifyProcessProgress(1L);
     }
 
 

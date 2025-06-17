@@ -54,12 +54,7 @@ public class FileParseManageImpl implements FileParseManager {
                 data = parseCsv(in, charset, onlyHeader);
             } else if (originalFilename.toLowerCase().endsWith(".xlsx") || originalFilename.toLowerCase().endsWith(".xls")) {
                 data = parseExcel(in, onlyHeader);
-            } else if (originalFilename.toLowerCase().endsWith(".docx")) {
-                data = null;
-            } else if (originalFilename.toLowerCase().endsWith(".doc")) {
-                data = null;
             } else {
-                log.error("不支持的文件类型: {}", originalFilename);
                 return null;
             }
         }

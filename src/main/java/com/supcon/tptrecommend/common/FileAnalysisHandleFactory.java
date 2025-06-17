@@ -11,10 +11,9 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 public class FileAnalysisHandleFactory {
-    // 关键：Spring会自动将所有PromotionStrategy的实现类注入到这个List中
+
     private final List<FileAnalysisHandle> fileAnalysisHandles;
 
-    // 使用EnumMap效率更高，且能保证key的完整性
     private final Map<String, FileAnalysisHandle> strategyMap = new HashMap<>();
 
 

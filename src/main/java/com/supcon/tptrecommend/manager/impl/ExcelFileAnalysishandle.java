@@ -35,8 +35,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     private final FileParseManager fileParseManager;
     private final DataHubFeign dataHubFeign;
     private final LlmFeign llmFeign;
-    public static final Set<Long> CACHE = Sets.newConcurrentHashSet();
-    ;
+    public static final Set<Long> STOP_SIGNAL_CACHE = Sets.newConcurrentHashSet();
 
     @Override
     public void handleFileAnalysis(byte[] bytes, Long fileId) {
@@ -51,7 +50,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
                 fullContentMarkdown = fileParseManager.parseBytesToMarkdown(bytes, originalFilename, false);
                 headMarkdown = fileParseManager.parseBytesToMarkdown(bytes, originalFilename, true);
             } catch (Exception e) {
-                log.error("文件解析失败：{}", originalFilename, e);
+                log.error("文件{}解析失败：", originalFilename, e);
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
                 ProcessProgressSupport.notifyParseComplete(fileId);
                 return;
@@ -60,6 +59,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
                 parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
             } else {
                 updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+                log.info("文件：{}，转换为markdown内容为空", originalFilename);
                 ProcessProgressSupport.notifyParseComplete(fileId);
             }
 
@@ -82,11 +82,16 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             .previousMarkdownContent("")
             .build());
         if (parse != null) {
-            CACHE.add(fileId);
+            STOP_SIGNAL_CACHE.add(fileId);
             String category = FileObject.Category.getValueByCode(parse.getCategory());
             updateFileParseSuccess(fileId, category, parse.getSummary());
             ProcessProgressSupport.notifyParseComplete(fileId);
-            buildDataAndSave(parse.getData(), originalFilename);
+            try {
+                buildDataAndSave(parse.getData(), originalFilename);
+            } catch (Exception e) {
+                log.error("excel文档类数据保存失败", e);
+            }
+
         } else {
             log.error("{}文件，大模型分析失败", originalFilename);
             updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
