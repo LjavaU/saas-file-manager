@@ -47,6 +47,6 @@ service:
   tempLabel:
     address: http://10.30.75.82:8080
 file:
-  upload-dir: /temp
+  upload-dir: D:/temp/uploads
 # 或者，如果你想看所有 Feign 客户端的（日志量会很大）
 # feign.Logger$Level: DEBUG
