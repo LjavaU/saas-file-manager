@@ -21,4 +21,6 @@ public interface FileAnalysisHandle {
      * @since 2025/06/13 09:35:11
      */
     Set<String> getSupportedTypes();
+
+    void handleFileAnalysis(String filePath, Long fileId);
 }

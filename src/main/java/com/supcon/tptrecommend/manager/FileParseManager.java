@@ -2,6 +2,8 @@ package com.supcon.tptrecommend.manager;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+
 public interface FileParseManager {
     /**
      * 将文件解析为 Markdown
@@ -28,6 +30,9 @@ public interface FileParseManager {
      * @since 2025/06/09 16:29:08
      */
     String parseBytesToMarkdown(byte[] bytes,  String originalFilename,Boolean onlyHeader) throws Exception;
+
+
+    String parseFileToMarkdown(File file, Boolean onlyHeader) throws Exception;
 
 
 }

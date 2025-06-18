@@ -4,9 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -56,6 +54,38 @@ public class FileEncodingDetector {
             }
         }
 
+        // 如果检测失败，回退到默认值
+        return StandardCharsets.UTF_8;
+    }
+
+    public static Charset detectCharset(File file) throws IOException {
+        // 1. 创建一个缓冲区
+        byte[] buf = new byte[4096];
+        UniversalDetector detector = new UniversalDetector(null);
+
+        // 2. 循环读取文件流，分块送入检测器
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int nread;
+            while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
+                detector.handleData(buf, 0, nread);
+            }
+        }
+        // 3. 标记数据结束
+        detector.dataEnd();
+
+        // 4. 获取结果并重置检测器
+        String detectedCharsetName = detector.getDetectedCharset();
+        detector.reset();
+
+
+        if (detectedCharsetName != null) {
+            try {
+                return Charset.forName(detectedCharsetName);
+            } catch (Exception e) {
+                log.error("不支持的字符集名称: {}", detectedCharsetName, e);
+                return StandardCharsets.UTF_8;
+            }
+        }
         // 如果检测失败，回退到默认值
         return StandardCharsets.UTF_8;
     }

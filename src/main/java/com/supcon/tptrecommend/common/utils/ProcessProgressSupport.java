@@ -18,8 +18,8 @@ public class ProcessProgressSupport {
         int intervalMs = 600;
         int steps = durationMs / intervalMs;
 
-        int totalMaxIncrement = endCap - start;  // 99 - 10 = 89
-        int totalIncrement = totalMaxIncrement - new Random().nextInt(2) - 1; // 例如最多用到 88
+        int totalMaxIncrement = endCap - start;
+        int totalIncrement = totalMaxIncrement - new Random().nextInt(2) - 1;
 
         List<Integer> increments = generateRandomSteps(totalIncrement, steps);
 
