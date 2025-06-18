@@ -60,7 +60,7 @@ public interface FileManager {
      */
     void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException;
 
-    String convertToMarkdown(MultipartFile file) throws Exception;
+
 
     FileObjectResp detail(Long fileId);
 

@@ -23,7 +23,6 @@ import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -58,11 +57,18 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
     private String llmUrl;
 
     @Override
-    public void handleFileAnalysis(byte[] bytes, Long fileId) {
+    public void handleFileAnalysis(String filePath, Long fileId) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (fileObject != null) {
+            File file = new File(filePath);
             String originalName = fileObject.getOriginalName();
-            ResponseEntity<byte[]> responseEntity = callLlmApiWithFile(bytes, originalName);
+            ResponseEntity<byte[]> responseEntity = callLlmApiWithFile(file);
+            // 删除文件
+            try {
+                Files.deleteIfExists(Paths.get(filePath));
+            } catch (IOException e) {
+                log.error("删除临时word文件失败: {}", filePath, e);
+            }
             if (responseEntity != null) {
                 if (!responseEntity.getStatusCode().is2xxSuccessful() || responseEntity.getBody() == null) {
                     log.error("{}文件调用py接口转换markdown有误", originalName);
@@ -76,10 +82,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                 doAnalysis(content, fileId);
             }
         }
-
-
     }
-
     private void doAnalysis(String content, Long fileId) {
         // TODO: 创建一个分段大小常量，1024 字节
         final int segmentSize = 1024;
@@ -319,64 +322,8 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         return Sets.newHashSet("doc", "docx");
     }
 
-    private ResponseEntity<byte[]> callLlmApiWithFile(byte[] fileBytes, String originalFilename) {
-        String url = llmUrl + "api/file/convert"; // 替换为你的Python接口地址
 
-        // 1. 设置请求头
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-        // 2. 将字节数组包装成资源，并重写getFilename方法以保留原始文件名
-        ByteArrayResource fileResource = new ByteArrayResource(fileBytes) {
-            @Override
-            public String getFilename() {
-                return originalFilename;
-            }
-        };
-
-        // 3. 构建 multipart/form-data 请求体
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        // "file" 必须与Python接口中定义的接收文件的参数名一致
-        body.add("file", fileResource);
-        // 4. 创建HttpEntity，它包含请求头和请求体
-        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-        // 5. 发送POST请求
-        try {
-            return restTemplate.postForEntity(url, requestEntity, byte[].class);
-        } catch (Exception e) {
-            log.error("调用llm接口：api/file/convert访问出错 ", e);
-        }
-
-        return null;
-    }
-
-    @Override
-    public void handleFileAnalysis(String filePath, Long fileId) {
-        FileObject fileObject = fileObjectService.getById(fileId);
-        if (fileObject != null) {
-            File file = new File(filePath);
-            String originalName = fileObject.getOriginalName();
-            ResponseEntity<byte[]> responseEntity = callLlmApiWithFile(file);
-            // 删除文件
-            try {
-                Files.deleteIfExists(Paths.get(filePath));
-            } catch (IOException e) {
-                log.error("删除临时word文件失败: {}", filePath, e);
-            }
-            if (responseEntity != null) {
-                if (!responseEntity.getStatusCode().is2xxSuccessful() || responseEntity.getBody() == null) {
-                    log.error("{}文件调用py接口转换markdown有误", originalName);
-                    return;
-                }
-                byte[] fileBytes = responseEntity.getBody();
-                // 2. 确定字符编码
-                Charset charset = getCharsetFromResponse(responseEntity);
-                // 3. 使用确定的编码将字节数组转换为字符串
-                String content = new String(fileBytes, charset);
-                doAnalysis(content, fileId);
-            }
-        }
-    }
 
     public ResponseEntity<byte[]> callLlmApiWithFile(File file) {
         String url = llmUrl + "api/file/convert";
@@ -385,19 +332,17 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         // 指定内容类型为 multipart/form-data
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-        // 2. 构建请求体 (Body)
-        // MultiValueMap 是一个专门用于存储表单数据的结构
+        // 构建请求体 (Body)
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
 
-        // 关键一步：将文件包装成 FileSystemResource
-        // FileSystemResource 是Spring提供的资源类，它能高效地处理文件，避免将整个文件读入内存
+        // 将文件包装成 FileSystemResource
         body.add("file", new FileSystemResource(file));
 
-        // 3. 创建完整的HttpEntity
+        // 创建完整的HttpEntity
         // HttpEntity 封装了请求头和请求体
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-        // 5. 发送POST请求
+        //  发送POST请求
         try {
             return restTemplate.postForEntity(url, requestEntity, byte[].class);
         } catch (Exception e) {

@@ -84,9 +84,9 @@ public class FileManagerImpl implements FileManager {
     @SneakyThrows
     @Override
     public FileObjectResp upload(MultipartFile file, String attributes, String path) {
-        // 2. 生成对象键 (Object Key)
+        //  生成对象键 (Object Key)
         String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
-        // 3. 生成唯一文件名
+        // 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
         // 文件全路径
@@ -99,7 +99,7 @@ public class FileManagerImpl implements FileManager {
         } else {
             objectKey = getPath(user) + uniqueFilename;
         }
-        // 5.上传文件到MinIO
+        // 上传文件到MinIO
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
@@ -278,11 +278,7 @@ public class FileManagerImpl implements FileManager {
         inputStream.close();
     }
 
-    @Override
-    public String convertToMarkdown(MultipartFile file) throws Exception {
-        return fileParseManager.parseFileToMarkdown(file, true);
 
-    }
 
     @Override
     public FileObjectResp detail(Long fileId) {
