@@ -17,8 +17,6 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -126,7 +124,7 @@ public class FileController extends BasicController {
     }
 
 
-    @PostMapping(value = "/to-markdown", produces = MediaType.TEXT_MARKDOWN_VALUE) // or MediaType.TEXT_PLAIN_VALUE
+  /*  @PostMapping(value = "/to-markdown", produces = MediaType.TEXT_MARKDOWN_VALUE) // or MediaType.TEXT_PLAIN_VALUE
     public ResponseEntity<String> convertToMarkdown(@RequestParam("file") MultipartFile file) {
         try {
             String markdown = fileManager.convertToMarkdown(file);
@@ -135,5 +133,5 @@ public class FileController extends BasicController {
             log.error("An unexpected error occurred:", e);
         }
         return ResponseEntity.ok().body("");
-    }
+    }*/
 }
