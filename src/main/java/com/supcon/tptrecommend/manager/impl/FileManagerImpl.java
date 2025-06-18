@@ -39,6 +39,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -50,6 +53,9 @@ public class FileManagerImpl implements FileManager {
 
     @Value("${minio.bucket}")
     private String bucket;
+
+    @Value("${file.upload-dir:D:/temp/uploads}")
+    private String uploadDir;
 
     public static final String FILE_SPLIT = "/";
 
@@ -97,12 +103,12 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-        // TODO: 大对象内存溢出问题
-        byte[] bytes = file.getBytes();
+        // 把上传的文件临时保存
+        String filePath = saveFileTemporary(file, uniqueFilename);
         if (StrUtil.isBlank(attributes)) {
             CompletableFuture.runAsync(() -> {
                 fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
-                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(bytes, fileId));
+                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
             }, EXECUTOR).exceptionally(throwable -> {
                 log.error("文件解析/分析失败", throwable);
                 updateFileStatus(fileId);
@@ -134,52 +140,23 @@ public class FileManagerImpl implements FileManager {
         return originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
     }
 
-  /*  private void saveFileTemporary(MultipartFile file){
+    private String saveFileTemporary(MultipartFile file, String uniqueFilename) {
+        // 确保目录存在
+        Path uploadPath = Paths.get(uploadDir);
         try {
-            String TEMP_UPLOAD_DIR = "D:/temp/uploads/";
-            // 确保目录存在
-            File uploadDir = new File(TEMP_UPLOAD_DIR);
-            if (!uploadDir.exists()) {
-                uploadDir.mkdirs();
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
             }
-
-            // 创建一个唯一的目标文件路径
-            String originalFilename = file.getOriginalFilename();
-            Path destinationFile = Paths.get(TEMP_UPLOAD_DIR, System.currentTimeMillis() + "-" + originalFilename);
-
-            // 立即将文件保存到目标路径
-            file.transferTo(destinationFile);
-
-            // 将文件路径传递给异步方法
-            asyncFileService.processFilePath(destinationFile);
-
+            Path filePath = uploadPath.resolve(uniqueFilename);
+            // 使用 transferTo 高效地将文件保存到磁盘
+            file.transferTo(filePath.toFile());
+            log.info("文件已临时保存至: {}", filePath);
+            return filePath.toString();
         } catch (IOException e) {
+            throw new RuntimeException(e);
         }
+
     }
-
-    public void processFilePath(Path filePath) {
-        // 异步方法根据路径读取和处理文件
-        System.out.println("Processing file at path: " + filePath + " in thread: " + Thread.currentThread().getName());
-
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            // ... 在这里处理文件流 ...
-            // 模拟耗时操作
-            Thread.sleep(5000);
-        } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
-            // 处理异常
-        } finally {
-            // 重要：处理完后，根据业务需要决定是否删除这个临时保存的文件
-            try {
-                Files.delete(filePath);
-                System.out.println("Cleaned up file: " + filePath);
-            } catch (IOException e) {
-                // log a warning
-            }
-        }
-        System.out.println("Finished processing file at path: " + filePath);
-    }*/
-
 
     private void uploadToMinio(MultipartFile file, String objectKey) {
         try {

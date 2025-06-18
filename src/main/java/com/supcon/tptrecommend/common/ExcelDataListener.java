@@ -26,6 +26,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
 
     /**
      * 从 Excel文件中读取的每一行数据都会调用此方法。
+     *
      * @param rowData 当前行的数据，作为列索引到单元格值的映射。
      * @param context 分析上下文.
      */
@@ -33,11 +34,16 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
     public void invoke(Map<Integer, String> rowData, AnalysisContext context) {
         // 将 Map 的 values 转换为 List
         List<String> rowList = new ArrayList<>(rowData.values());
+        // TODO: 限制记录是为10条
+        if (rowList.size() == 11) {
+            return;
+        }
         data.add(rowList);
     }
-    
+
     /**
      * 当分析完所有数据后，将调用该方法。
+     *
      * @param context 分析上下文.
      */
     @Override
@@ -46,7 +52,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
     }
 
     /**
-     *读取 header 时调用该方法。
+     * 读取 header 时调用该方法。
      */
     @Override
     public void invokeHeadMap(Map<Integer, String> headMap, AnalysisContext context) {

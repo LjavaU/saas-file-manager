@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -33,8 +34,12 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -89,8 +94,8 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         int lastReportedProgress = 0;
         // 存储结果的数组
         JSONArray resultArray = new JSONArray();
-        String category = "";
-        String summary = "";
+        String category = null;
+        String summary = null;
         for (int i = 0; i < totalSegments; i++) {
             // TODO:// 限制段数
             if (i == 2) {
@@ -112,8 +117,10 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
                     .build();
                 FileParseResp parse = llmFeign.parse(request);
                 if (parse != null && parse.getData() != null) {
-                    category = parse.getCategory();
-                    summary = parse.getSummary();
+                    if (category == null || summary == null) {
+                        category = parse.getCategory();
+                        summary = parse.getSummary();
+                    }
                     JSONArray data = parse.getData();
                     resultArray.addAll(data);
                     log.info("LLM正在分析word文档...,第{}段，处理完成...", i + 1);
@@ -340,6 +347,62 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             log.error("调用llm接口：api/file/convert访问出错 ", e);
         }
 
+        return null;
+    }
+
+    @Override
+    public void handleFileAnalysis(String filePath, Long fileId) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (fileObject != null) {
+            File file = new File(filePath);
+            String originalName = fileObject.getOriginalName();
+            ResponseEntity<byte[]> responseEntity = callLlmApiWithFile(file);
+            // 删除文件
+            try {
+                Files.deleteIfExists(Paths.get(filePath));
+            } catch (IOException e) {
+                log.error("删除临时word文件失败: {}", filePath, e);
+            }
+            if (responseEntity != null) {
+                if (!responseEntity.getStatusCode().is2xxSuccessful() || responseEntity.getBody() == null) {
+                    log.error("{}文件调用py接口转换markdown有误", originalName);
+                    return;
+                }
+                byte[] fileBytes = responseEntity.getBody();
+                // 2. 确定字符编码
+                Charset charset = getCharsetFromResponse(responseEntity);
+                // 3. 使用确定的编码将字节数组转换为字符串
+                String content = new String(fileBytes, charset);
+                doAnalysis(content, fileId);
+            }
+        }
+    }
+
+    public ResponseEntity<byte[]> callLlmApiWithFile(File file) {
+        String url = llmUrl + "api/file/convert";
+        // 1. 设置请求头
+        HttpHeaders headers = new HttpHeaders();
+        // 指定内容类型为 multipart/form-data
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        // 2. 构建请求体 (Body)
+        // MultiValueMap 是一个专门用于存储表单数据的结构
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+
+        // 关键一步：将文件包装成 FileSystemResource
+        // FileSystemResource 是Spring提供的资源类，它能高效地处理文件，避免将整个文件读入内存
+        body.add("file", new FileSystemResource(file));
+
+        // 3. 创建完整的HttpEntity
+        // HttpEntity 封装了请求头和请求体
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        // 5. 发送POST请求
+        try {
+            return restTemplate.postForEntity(url, requestEntity, byte[].class);
+        } catch (Exception e) {
+            log.error("调用llm接口：api/file/convert访问出错 ", e);
+        }
         return null;
     }
 }

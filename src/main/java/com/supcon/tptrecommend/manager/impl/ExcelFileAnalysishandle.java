@@ -19,6 +19,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -208,5 +212,42 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     @Override
     public Set<String> getSupportedTypes() {
         return Sets.newHashSet("xlsx", "xls", "csv");
+    }
+
+    @Override
+    public void handleFileAnalysis(String filePath, Long fileId) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        String originalFilename = fileObject.getOriginalName();
+        if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
+            // 模拟的方式推送处理进度
+            ProcessProgressSupport.notifyProcessProgress(fileId);
+            String fullContentMarkdown;
+            String headMarkdown;
+            try {
+                File file = new File(filePath);
+                fullContentMarkdown = fileParseManager.parseFileToMarkdown(file, false);
+                headMarkdown = fileParseManager.parseFileToMarkdown(file, true);
+            } catch (Exception e) {
+                log.error("文件{}解析失败：", originalFilename, e);
+                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+                ProcessProgressSupport.notifyParseComplete(fileId);
+                return;
+            } finally {
+                try {
+                    Files.deleteIfExists(Paths.get(filePath));
+                } catch (IOException e) {
+                    log.error("删除临时CSV文件失败: {}", filePath, e);
+                }
+            }
+            if (StrUtil.isAllNotBlank(fullContentMarkdown, headMarkdown)) {
+                parseWithLLM(fileId, fullContentMarkdown, originalFilename, headMarkdown);
+            } else {
+                updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+                log.info("文件：{}，转换为markdown内容为空", originalFilename);
+                ProcessProgressSupport.notifyParseComplete(fileId);
+            }
+
+
+        }
     }
 }
