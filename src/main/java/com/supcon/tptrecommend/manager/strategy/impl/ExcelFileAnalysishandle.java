@@ -69,7 +69,6 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     }
 
 
-
     private void updateFileParseMetadata(Long fileId, String category, String summary) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
@@ -79,7 +78,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     }
 
     private void updateFileParsed(Long fileId) {
-      fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+        fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
     }
 
     @Override
@@ -112,7 +111,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         }
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
-        updateFileParseMetadata(fileId,FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
+        updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
         // 通知解析进程【LLM分类成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
         Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
@@ -121,7 +120,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             if (businessDataHandler.isDirectHandler()) {
                 // 更新文件解析状态为完成
                 updateFileParsed(fileId);
-                businessDataHandler.processDirectly(file,fileId,rowCount);
+                businessDataHandler.processDirectly(file, fileId, rowCount);
                 return;
             }
             // 获取大模型返回的映射
@@ -132,8 +131,12 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
             Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
             }, true);
-            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(),fileId,rowCount);
+            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount);
             EasyExcel.read(file, excelDataListener).sheet().doRead();
+        } else {
+            updateFileParsed(fileId);
+            ProcessProgressSupport.notifyParseComplete(fileId);
+
         }
 
 
@@ -151,11 +154,11 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      */
     private FileAlignmentResp getFileHeaderMapping(String excelHeaderMarkdown, String dataBaseSchema, String originalFilename) {
         FileAlignmentResp alignmentResp = llmFeign.alignment(FileAlignmentReq.builder()
-            .excelHeader(excelHeaderMarkdown)
-            .databaseSchema(dataBaseSchema)
-            .subcategory(0)
-            .documentType("")
-            .build());
+                .excelHeader(excelHeaderMarkdown)
+                .databaseSchema(dataBaseSchema)
+                .subcategory(0)
+                .documentType("")
+                .build());
         if (Objects.isNull(alignmentResp)) {
             log.warn("文件：{}，LLM实体映射失败", originalFilename);
             throw new ServerException("文件实体映射失败");
@@ -175,8 +178,8 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      */
     private FileClassifyResp classifyFile(String headerMarkdown, String originalFilename) {
         FileClassifyResp classifyResp = llmFeign.classify(FileClassifyReq.builder()
-            .headMarkdownContent(headerMarkdown)
-            .documentType("excel").build());
+                .headMarkdownContent(headerMarkdown)
+                .documentType("excel").build());
         if (Objects.isNull(classifyResp)) {
             log.warn("文件：{}，LLM分类失败", originalFilename);
             throw new ServerException("文件分类失败");
@@ -184,8 +187,6 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         }
         return classifyResp;
     }
-
-
 
 
 }

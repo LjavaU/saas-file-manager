@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.manager.strategy;
 
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
  * @author luhao
  * @since 2025/06/24 16:59:33
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class BusinessDataHandlerFactory {
@@ -29,7 +31,7 @@ public class BusinessDataHandlerFactory {
     @PostConstruct
     public void init() {
         handlerMap = handlers.stream()
-            .collect(Collectors.toMap(BusinessDataHandler::getBusinessKey, Function.identity()));
+                .collect(Collectors.toMap(BusinessDataHandler::getBusinessKey, Function.identity()));
     }
 
     public Optional<BusinessDataHandler> getHandler(Integer businessKey) {
@@ -38,7 +40,9 @@ public class BusinessDataHandlerFactory {
         }
         BusinessDataHandler handler = handlerMap.get(businessKey);
         if (handler == null) {
-            throw new IllegalArgumentException("不支持的业务类型: " + SubCategoryEnum.fromCode(businessKey) + "-" + businessKey);
+            log.error("不支持的业务类型: {}-{}", SubCategoryEnum.fromCode(businessKey), businessKey);
+            return Optional.empty();
+            //throw new IllegalArgumentException("不支持的业务类型: " + SubCategoryEnum.fromCode(businessKey) + "-" + businessKey);
         }
         return Optional.of(handler);
     }
