@@ -23,7 +23,7 @@ public class MarkdownConverter {
     public static String generateMarkdownTable(List<List<String>> data) {
         // --- 1. 输入验证 ---
         if (data == null || data.isEmpty()) {
-            return "";
+            return null;
         }
 
         // --- 2. 确定表格的最大列数以处理不规则行 ---
@@ -34,7 +34,7 @@ public class MarkdownConverter {
             }
         }
         if (maxColumns == 0) {
-            return "";
+            return null;
         }
 
         StringBuilder markdownBuilder = new StringBuilder();

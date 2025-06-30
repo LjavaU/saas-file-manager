@@ -32,5 +32,13 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
         return fileObject.getId();
     }
 
+    public boolean updateFileParseStatus(Long fileId, FileObject.FileStatus fileStatus) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setFileStatus(fileStatus.getValue());
+        fileObjectMapper.updateById(fileObject);
+        return true;
+    }
+
 
 }

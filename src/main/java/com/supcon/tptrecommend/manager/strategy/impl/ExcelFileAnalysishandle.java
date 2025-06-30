@@ -1,0 +1,191 @@
+package com.supcon.tptrecommend.manager.strategy.impl;
+
+import cn.hutool.core.lang.TypeReference;
+import cn.hutool.json.JSONUtil;
+import com.alibaba.excel.EasyExcel;
+import com.google.common.collect.Sets;
+import com.supcon.systemcommon.exception.ServerException;
+import com.supcon.tptrecommend.common.utils.MarkdownConverter;
+import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.common.utils.RandomUtil;
+import com.supcon.tptrecommend.entity.FileObject;
+import com.supcon.tptrecommend.feign.LlmFeign;
+import com.supcon.tptrecommend.feign.entity.llm.FileAlignmentReq;
+import com.supcon.tptrecommend.feign.entity.llm.FileAlignmentResp;
+import com.supcon.tptrecommend.feign.entity.llm.FileClassifyReq;
+import com.supcon.tptrecommend.feign.entity.llm.FileClassifyResp;
+import com.supcon.tptrecommend.integration.excel.ExcelDataListener;
+import com.supcon.tptrecommend.integration.excel.ExtraAttributesListener;
+import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
+import com.supcon.tptrecommend.manager.strategy.BusinessDataHandlerFactory;
+import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
+import com.supcon.tptrecommend.service.IFileObjectService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class ExcelFileAnalysishandle implements FileAnalysisHandle {
+    private final IFileObjectService fileObjectService;
+    private final LlmFeign llmFeign;
+    public static final Set<Long> STOP_SIGNAL_CACHE = Sets.newConcurrentHashSet();
+    private final BusinessDataHandlerFactory businessDataHandlerFactory;
+
+    /**
+     * 处理文件分析
+     *
+     * @param filePath 文件路径
+     * @param fileId   文件 ID
+     * @author luhao
+     * @since 2025/06/18 20:06:18
+     */
+    @Override
+    public void handleFileAnalysis(String filePath, Long fileId) {
+        // 通知解析进程【文件上传成功】
+        ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(5, 10));
+        FileObject fileObject = fileObjectService.getById(fileId);
+        String originalFilename = fileObject.getOriginalName();
+        if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
+            try {
+                File file = new File(filePath);
+                doHandle(file, fileId, originalFilename);
+            } finally {
+                try {
+                    Files.deleteIfExists(Paths.get(filePath));
+                } catch (IOException e) {
+                    log.error("删除临时{}文件失败:", originalFilename, e);
+                }
+            }
+
+        }
+    }
+
+
+
+    private void updateFileParseMetadata(Long fileId, String category, String summary) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setCategory(category);
+        fileObject.setContentOverview(summary);
+        fileObjectService.updateById(fileObject);
+    }
+
+    private void updateFileParsed(Long fileId) {
+      fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+    }
+
+    @Override
+    public Set<String> getSupportedTypes() {
+        return Sets.newHashSet("xlsx", "xls", "csv");
+    }
+
+
+    /**
+     * 文件处理
+     *
+     * @param file             文件
+     * @param fileId           文件 ID
+     * @param originalFilename 原始文件名
+     * @author luhao
+     * @since 2025/06/25 19:09:11
+     */
+    private void doHandle(File file, Long fileId, String originalFilename) {
+        ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
+        EasyExcel.read(file, extraAttributesListener).sheet().doRead();
+        // 获取表头
+        List<String> excelHeaders = extraAttributesListener.getOriginalHeaders();
+        // 获取行数
+        int rowCount = extraAttributesListener.getRowCount();
+        String headerMarkdown = MarkdownConverter.generateMarkdownTable(Collections.singletonList(excelHeaders));
+        if (headerMarkdown == null) {
+            log.warn("文件：{}表头转换为markdown为空", originalFilename);
+            throw new ServerException("文件表头转换为markdown为空");
+
+        }
+        FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
+        // 更新文件元数据
+        updateFileParseMetadata(fileId,FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
+        // 通知解析进程【LLM分类成功】
+        ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+        Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
+        if (handlerOptional.isPresent()) {
+            BusinessDataHandler businessDataHandler = handlerOptional.get();
+            if (businessDataHandler.isDirectHandler()) {
+                // 更新文件解析状态为完成
+                updateFileParsed(fileId);
+                businessDataHandler.processDirectly(file,fileId,rowCount);
+                return;
+            }
+            // 获取大模型返回的映射
+            FileAlignmentResp alignmentResp = getFileHeaderMapping(headerMarkdown, JSONUtil.toJsonStr(businessDataHandler.getDbSchemaDescription()), originalFilename);
+            // 更新文件解析转态
+            updateFileParsed(fileId);
+            // 通知解析进程【LLM实体映射成功】
+            ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
+            Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
+            }, true);
+            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(),fileId,rowCount);
+            EasyExcel.read(file, excelDataListener).sheet().doRead();
+        }
+
+
+    }
+
+    /**
+     * 获取文件头到实体的映射
+     *
+     * @param excelHeaderMarkdown Excel 标题 Markdown
+     * @param dataBaseSchema      数据库对应实体结构
+     * @param originalFilename    原始文件名
+     * @return {@link FileAlignmentResp }
+     * @author luhao
+     * @since 2025/06/26 11:29:50
+     */
+    private FileAlignmentResp getFileHeaderMapping(String excelHeaderMarkdown, String dataBaseSchema, String originalFilename) {
+        FileAlignmentResp alignmentResp = llmFeign.alignment(FileAlignmentReq.builder()
+            .excelHeader(excelHeaderMarkdown)
+            .databaseSchema(dataBaseSchema)
+            .subcategory(0)
+            .documentType("")
+            .build());
+        if (Objects.isNull(alignmentResp)) {
+            log.warn("文件：{}，LLM实体映射失败", originalFilename);
+            throw new ServerException("文件实体映射失败");
+        }
+        return alignmentResp;
+
+    }
+
+    /**
+     * 文件分类
+     *
+     * @param headerMarkdown   Excel 表头（ markdown格式）
+     * @param originalFilename 原始文件名
+     * @return {@link FileClassifyResp }
+     * @author luhao
+     * @since 2025/06/25 11:27:39
+     */
+    private FileClassifyResp classifyFile(String headerMarkdown, String originalFilename) {
+        FileClassifyResp classifyResp = llmFeign.classify(FileClassifyReq.builder()
+            .headMarkdownContent(headerMarkdown)
+            .documentType("excel").build());
+        if (Objects.isNull(classifyResp)) {
+            log.warn("文件：{}，LLM分类失败", originalFilename);
+            throw new ServerException("文件分类失败");
+
+        }
+        return classifyResp;
+    }
+
+
+
+
+}

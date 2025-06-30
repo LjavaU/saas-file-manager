@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.manager;
+package com.supcon.tptrecommend.manager.strategy;
 
 import java.util.Set;
 

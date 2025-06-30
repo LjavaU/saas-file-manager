@@ -123,15 +123,4 @@ public class FileController extends BasicController {
         return data( fileManager.listFiles(path));
     }
 
-
-  /*  @PostMapping(value = "/to-markdown", produces = MediaType.TEXT_MARKDOWN_VALUE) // or MediaType.TEXT_PLAIN_VALUE
-    public ResponseEntity<String> convertToMarkdown(@RequestParam("file") MultipartFile file) {
-        try {
-            String markdown = fileManager.convertToMarkdown(file);
-            return ResponseEntity.ok(markdown);
-        } catch (Exception e) {
-            log.error("An unexpected error occurred:", e);
-        }
-        return ResponseEntity.ok().body("");
-    }*/
 }

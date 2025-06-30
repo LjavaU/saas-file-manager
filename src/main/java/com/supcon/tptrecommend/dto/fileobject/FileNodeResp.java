@@ -5,7 +5,6 @@ import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -25,7 +24,7 @@ public class FileNodeResp {
     private String type;
 
     @ApiModelProperty(value = "文件大小(KB)")
-    private BigDecimal size;
+    private String size;
 
     @ApiModelProperty(value = "上传时间")
     private LocalDateTime uploadTime;

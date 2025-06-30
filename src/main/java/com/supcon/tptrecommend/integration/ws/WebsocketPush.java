@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.common;
+package com.supcon.tptrecommend.integration.ws;
 
 import com.supcon.systemcomponent.websocket.WebSocketSender;
 import com.supcon.systemcomponent.websocket.holder.WebSocketSessionHolder;

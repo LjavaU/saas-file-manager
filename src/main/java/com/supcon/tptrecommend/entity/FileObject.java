@@ -67,6 +67,9 @@ public class FileObject extends BasicEntity<Long> {
     @ApiModelProperty(value = "文件解析状态，【0-未解析，1-解析完成，2-解释失败】")
     private Integer fileStatus;
 
+    @ApiModelProperty(value = "所属子类")
+    private Integer subCategory;
+
     @AllArgsConstructor
     @Getter
     public enum FileStatus {

@@ -6,8 +6,6 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
-
 /**
  * <p>
  * MinIO 文件元数据表
@@ -45,8 +43,8 @@ public class FileObjectResp extends BasicEntity<Long> {
     @ApiModelProperty(value = "MIME 文件类型", example = "MIME 文件类型")
     private String contentType;
 
-    @ApiModelProperty(value = "文件大小（MB）")
-    private BigDecimal fileSize;
+    @ApiModelProperty(value = "文件大小")
+    private String fileSize;
 
     @ApiModelProperty(value = "标签", example = "标签")
     private String tags;
