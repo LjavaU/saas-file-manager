@@ -1,0 +1,6 @@
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 240000 # 连接超时时间，单位为毫秒
+        readTimeout: 240000 # 读取超时时间，单位为毫秒

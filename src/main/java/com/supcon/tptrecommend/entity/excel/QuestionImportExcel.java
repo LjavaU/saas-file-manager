@@ -2,7 +2,7 @@ package com.supcon.tptrecommend.entity.excel;
 
 import com.alibaba.excel.annotation.ExcelProperty;
 import com.supcon.systemcomponent.excel.model.ExcelErrorMessage;
-import com.supcon.tptrecommend.excel.YesNoToIntegerConverter;
+import com.supcon.tptrecommend.integration.excel.YesNoToIntegerConverter;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;

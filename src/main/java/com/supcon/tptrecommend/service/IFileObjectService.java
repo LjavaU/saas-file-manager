@@ -26,4 +26,15 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      */
     Long saveObj(FileObjectCreateReq fileObjectCreateReq);
 
+    /**
+     * 更新文件解析状态
+     *
+     * @param fileId     文件 ID
+     * @param fileStatus 文件状态
+     * @return boolean
+     * @author luhao
+     * @since 2025/06/30 14:54:24
+     */
+    boolean updateFileParseStatus(Long fileId, FileObject.FileStatus fileStatus);
+
 }

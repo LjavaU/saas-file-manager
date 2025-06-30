@@ -1,7 +1,6 @@
-package com.supcon.tptrecommend.common;
+package com.supcon.tptrecommend.manager.strategy;
 
 import com.supcon.systemcommon.exception.ClientException;
-import com.supcon.tptrecommend.manager.FileAnalysisHandle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

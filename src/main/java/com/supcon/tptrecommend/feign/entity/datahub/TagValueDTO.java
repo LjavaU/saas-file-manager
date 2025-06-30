@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.feign.entity;
+package com.supcon.tptrecommend.feign.entity.datahub;
 
 import com.alibaba.fastjson2.annotation.JSONField;
 import com.baomidou.mybatisplus.annotation.FieldFill;

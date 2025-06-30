@@ -2,9 +2,9 @@ package com.supcon.tptrecommend.feign;
 
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
-import com.supcon.tptrecommend.feign.entity.TmpLabelComponentCreateReq;
-import com.supcon.tptrecommend.feign.entity.TmpLabelDeviceCreateReq;
-import com.supcon.tptrecommend.feign.entity.TmpLabelTargetCreateReq;
+import com.supcon.tptrecommend.feign.entity.tmplabel.TmpLabelComponentCreateReq;
+import com.supcon.tptrecommend.feign.entity.tmplabel.TmpLabelDeviceCreateReq;
+import com.supcon.tptrecommend.feign.entity.tmplabel.TmpLabelTargetCreateReq;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.cloud.openfeign.FeignClient;

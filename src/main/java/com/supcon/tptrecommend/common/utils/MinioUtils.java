@@ -212,6 +212,7 @@ public class MinioUtils {
             } catch (Exception e) {
                 // 处理获取删除结果时的异常
                 log.error("检查删除结果时出错: ", e);
+                throw new ServerException("删除文件失败");
             }
         }
         log.info("成功删除文件夹 '{}' 下的所有文件。", folderPath);
@@ -390,7 +391,7 @@ public class MinioUtils {
         for (Result<Item> result : objectsIterator) {
             try {
                 Item item = result.get();
-                if(item.size()==0){
+                if (item.size() == 0) {
                     continue;
                 }
                 if (!item.isDir()) {

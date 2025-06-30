@@ -5,12 +5,6 @@ spring:
     multipart:
       max-file-size: 1024MB
       max-request-size: 1024MB
-feign:
-  client:
-    config:
-      default: # 这里可以指定特定的Feign客户端名称，或者使用default为所有Feign客户端设置
-        connectTimeout: 1200000 # 连接超时时间，单位为毫秒
-        readTimeout: 1200000 # 读取超时时间，单位为毫秒
 sup:
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -41,12 +35,14 @@ mybatis-plus:
     #log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 service:
   llm:
-    address: http://10.16.11.21:9002
+    address: http://10.16.11.21:9003
   dataHub:
     address: http://data-hub-obp-dev.supcon5t.com
   tempLabel:
     address: http://10.30.75.82:8080
+  autoSupervision:
+    address: http://auto-supervision-gpt-dev.supcon5t.com
+  pid:
+    address: http://obp-dev.supcon5t.com/xpt-tpt-pid/
 file:
   upload-dir: D:/temp/uploads
-# 或者，如果你想看所有 Feign 客户端的（日志量会很大）
-# feign.Logger$Level: DEBUG

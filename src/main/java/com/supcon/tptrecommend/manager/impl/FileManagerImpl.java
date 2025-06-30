@@ -9,10 +9,11 @@ import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
+import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemcommon.exception.SupException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.FileAnalysisHandleFactory;
+import com.supcon.tptrecommend.common.utils.FileSizeFormatter;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
@@ -20,7 +21,7 @@ import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.FileManager;
-import com.supcon.tptrecommend.manager.FileParseManager;
+import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
@@ -30,13 +31,12 @@ import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -67,7 +67,6 @@ public class FileManagerImpl implements FileManager {
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
-    private final FileParseManager fileParseManager;
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
@@ -106,40 +105,65 @@ public class FileManagerImpl implements FileManager {
         // 把上传的文件临时保存
         String filePath = saveFileTemporary(file, uniqueFilename);
         if (StrUtil.isBlank(attributes)) {
-            CompletableFuture.runAsync(() -> {
-                fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
-                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
-            }, EXECUTOR).exceptionally(throwable -> {
-                log.error("文件解析/分析失败", throwable);
-                updateFileStatus(fileId);
-                ProcessProgressSupport.notifyParseComplete(fileId);
-                return null;
-            });
+            if (Objects.nonNull(filePath)) {
+                CompletableFuture.runAsync(() -> {
+                    fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
+                        .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
+                }, EXECUTOR).exceptionally(throwable -> {
+                    log.error("文件：{},在读取或者解析过程失败", originalFilename, throwable);
+                    markFileAsParseFailed(fileId);
+                    return null;
+                });
+            } else {
+                markFileAsParseFailed(fileId);
+            }
 
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void updateFileStatus(Long fileId) {
+    private void updateFileStatusParseFailed(Long fileId) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setFileStatus(FileObject.FileStatus.PARSE_FAILED.getValue());
         fileObjectService.updateById(fileObject);
     }
 
-    public String getFileSuffix(String originalFilename) {
+    private void markFileAsParseFailed(Long fileId) {
+        updateFileStatusParseFailed(fileId);
+        ProcessProgressSupport.notifyParseComplete(fileId);
+    }
+
+    /**
+     * 获取文件后缀
+     *
+     * @param originalFilename 原始文件名
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/06/19 10:18:57
+     */
+    private String getFileSuffix(String originalFilename) {
         if (originalFilename == null) {
             return "";
         }
 
         int dotIndex = originalFilename.lastIndexOf('.');
         if (dotIndex == -1) {
-            return ""; // 无后缀
+            return "";
         }
 
         return originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
     }
 
+    /**
+     * 临时保存文件
+     *
+     * @param file           文件
+     * @param uniqueFilename （唯一文件名）
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/06/19 10:17:59
+     */
     private String saveFileTemporary(MultipartFile file, String uniqueFilename) {
         // 确保目录存在
         Path uploadPath = Paths.get(uploadDir);
@@ -150,23 +174,43 @@ public class FileManagerImpl implements FileManager {
             Path filePath = uploadPath.resolve(uniqueFilename);
             // 使用 transferTo 高效地将文件保存到磁盘
             file.transferTo(filePath.toFile());
-            log.info("文件已临时保存至: {}", filePath);
+            log.info("上传的文件已临时保存至: {}", filePath);
             return filePath.toString();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error("上传的文件：{}，临时保存失败", uniqueFilename, e);
+            return null;
         }
 
     }
 
+    /**
+     * 上传到 MiniO
+     *
+     * @param file      文件
+     * @param objectKey 对象键
+     * @author luhao
+     * @since 2025/06/19 10:18:08
+     */
     private void uploadToMinio(MultipartFile file, String objectKey) {
         try {
             minioUtils.uploadFile(bucket, objectKey, file.getInputStream(), file.getContentType());
         } catch (Exception e) {
-            log.error("上传失败: {}", objectKey, e);
+            log.error("文件上传到minio失败: {}", objectKey, e);
             throw new ServerException("文件上传失败");
         }
     }
 
+    /**
+     * 将元数据保存到数据库
+     *
+     * @param file             文件
+     * @param user             用户
+     * @param objectKey        对象键
+     * @param originalFilename 原始文件名
+     * @return {@link Long }
+     * @author luhao
+     * @since 2025/06/19 10:18:15
+     */
     private Long saveMetadataToDB(MultipartFile file, LoginInfoUserDTO user, String objectKey, String originalFilename) {
         return fileObjectService.saveObj(FileObjectCreateReq.builder()
             .userId(user.getId())
@@ -210,17 +254,30 @@ public class FileManagerImpl implements FileManager {
      * @date 2025/05/22 15:10:06
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Boolean delete(Long id) {
         // 根据id和用户名查询文件
         FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
             .eq(AutoIdEntity::getId, id)
             .eq(FileObject::getUserName, LoginUserUtils.getLoginUserInfo().getUsername()));
         if (fileObject == null) {
-            throw new ServerException("文件不存在");
+            throw new ClientException("文件不存在");
         }
+        deleteFileObjectHierarchy(fileObject.getObjectName(), id);
         minioUtils.removeFile(fileObject.getBucketName(), fileObject.getObjectName());
-        fileObjectService.removeById(id);
         return true;
+    }
+
+    private void deleteFileObjectHierarchy(String objectName,long id) {
+        // 以“/”结尾的是目录，则删除目录及目录下的所有文件
+        if (objectName.endsWith("/")) {
+            fileObjectService.remove(Wrappers.<FileObject>lambdaQuery()
+                .likeRight(FileObject::getObjectName, objectName));
+        } else {
+            fileObjectService.removeById(id);
+        }
+
+
     }
 
     /**
@@ -277,7 +334,6 @@ public class FileManagerImpl implements FileManager {
         // 关闭输入流，释放资源
         inputStream.close();
     }
-
 
 
     @Override
@@ -368,7 +424,7 @@ public class FileManagerImpl implements FileManager {
                 continue;
             }
             // 检查是否包含'/'来区分文件和文件夹
-            int slashIndex = relativePath.indexOf('/');
+            int slashIndex = relativePath.lastIndexOf('/');
 
             if (slashIndex == -1) {
                 // 不包含'/'，是直接子文件
@@ -376,7 +432,7 @@ public class FileManagerImpl implements FileManager {
                 fileNodes.add(node);
             } else {
                 // 包含'/'，说明在子文件夹下
-                // 我们只取第一个'/'之前的部分，作为文件夹名
+                // 只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, slashIndex);
                 if (counted.contains(folderName)) {
                     continue;
@@ -407,8 +463,8 @@ public class FileManagerImpl implements FileManager {
             fileNodes.add(node);
         }
 
-        // 可以按类型和名称排序，让文件夹显示在前面
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getUploadTime).reversed());
+        // 先按照文件夹进行排序，再按照上传时间进行排序
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
         return fileNodes;
     }
 
@@ -423,22 +479,9 @@ public class FileManagerImpl implements FileManager {
         node.setAbility(fileObject.getAbility());
         node.setContentOverview(fileObject.getContentOverview());
         node.setFileStatus(fileObject.getFileStatus());
-        node.setSize(mapFileSize(fileObject.getFileSize()));
+        node.setSize(FileSizeFormatter.formatFileSize(fileObject.getFileSize()));
         node.setUploadTime(fileObject.getCreateTime());
         return node;
     }
 
-    private BigDecimal mapFileSize(Long fileSize) {
-        BigDecimal divide = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 2, RoundingMode.HALF_UP);
-        if (divide.compareTo(BigDecimal.ZERO) == 0) {
-            BigDecimal div = BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 4, RoundingMode.HALF_UP);
-            if (div.compareTo(BigDecimal.ZERO) == 0) {
-                return BigDecimal.valueOf(fileSize).divide(BigDecimal.valueOf(1024 * 1024), 6, RoundingMode.HALF_UP);
-            } else {
-                return div;
-            }
-        }
-        return divide;
-
-    }
 }

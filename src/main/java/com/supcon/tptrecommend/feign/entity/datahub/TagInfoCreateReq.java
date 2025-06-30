@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.feign.entity;
+package com.supcon.tptrecommend.feign.entity.datahub;
 
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;

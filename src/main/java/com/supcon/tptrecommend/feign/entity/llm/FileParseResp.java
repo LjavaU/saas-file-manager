@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.feign.entity;
+package com.supcon.tptrecommend.feign.entity.llm;
 
 import cn.hutool.json.JSONArray;
 import io.swagger.annotations.ApiModel;

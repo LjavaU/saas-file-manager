@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.feign.entity;
+package com.supcon.tptrecommend.feign.entity.tmplabel;
 
 import io.swagger.annotations.ApiModel;
 import lombok.Data;

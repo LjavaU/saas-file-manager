@@ -1,4 +1,4 @@
-package com.supcon.tptrecommend.feign.entity;
+package com.supcon.tptrecommend.feign.entity.tmplabel;
 
 import io.swagger.annotations.ApiModel;
 import lombok.Data;
@@ -9,21 +9,21 @@ import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 
 @Data
-@ApiModel(value = "-数据创建模型", description = "")
-public class TmpLabelTargetCreateReq implements Serializable {
+@ApiModel(value = "组分-数据创建模型", description = "组分")
+public class TmpLabelComponentCreateReq implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @NotNull(message = "{}：{}")
-    private Integer targetId;
+    private Integer compId;
 
     @NotBlank(message = "{}：{}")
     @Length(max = 100, message = "{}：{}")
-    private String targetName;
+    private String compName;
 
     @NotNull(message = "{}：{}")
-    private Integer targetType;
+    private Float compRatio;
 
-    private String targetDesc;
+    private String compDesc;
 
 }
