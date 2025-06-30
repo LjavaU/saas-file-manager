@@ -10,6 +10,7 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
+import com.supcon.tptrecommend.common.utils.DateParserUtil;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.feign.DataHubFeign;
 import com.supcon.tptrecommend.feign.entity.datahub.TagValueDTO;
@@ -20,7 +21,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -97,8 +97,9 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
                 tagValueDTO.setTagName(headers.get(entry.getKey()));
                 tagValueDTO.setTagValue(entry.getValue());
                 if (StrUtil.isNotBlank(time)) {
-                    tagValueDTO.setTagTime(LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")));
-                    tagValueDTO.setAppTime(LocalDateTime.parse(time, DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")));
+                    LocalDateTime dateTime = DateParserUtil.parse(time);
+                    tagValueDTO.setTagTime(dateTime);
+                    tagValueDTO.setAppTime(dateTime);
                 }
                 entities.add(tagValueDTO);
             }
