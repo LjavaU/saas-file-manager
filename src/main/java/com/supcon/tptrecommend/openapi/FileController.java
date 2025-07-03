@@ -8,10 +8,7 @@ import com.supcon.systembase.logapi.enums.OperateTypeEnum;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
-import com.supcon.tptrecommend.dto.fileobject.CreateFolderReq;
-import com.supcon.tptrecommend.dto.fileobject.FileNodeResp;
-import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
-import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
+import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.manager.FileManager;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -50,18 +47,10 @@ public class FileController extends BasicController {
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes,String path) {
-        return data(fileManager.upload(multipartFile,attributes,path));
+    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes, String path) {
+        return data(fileManager.upload(multipartFile, attributes, path));
     }
 
-    /**
-     * 上传文件
-     *
-     * @param id 身份证
-     * @return 结果
-     * @author luhao
-     * @date 2025/05/22 13:52:19
-     */
     @DeleteMapping(value = "delete/{id}")
     @ApiOperation("删除文件")
     @ApiOperationSupport(order = 2, author = "luhao")
@@ -116,11 +105,20 @@ public class FileController extends BasicController {
     }
 
     @GetMapping("browse")
-    @ApiOperation("获取文件夹层级结构")
+    @ApiOperation("获取文件层级结构")
     @ApiOperationSupport(order = 8, author = "luhao")
-    @SysServiceLog(moduleName = "文件管理-获取文件夹层级结构", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    @SysServiceLog(moduleName = "文件管理-获取文件层级结构", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
     public SupResult<List<FileNodeResp>> browse(@RequestParam(value = "path", defaultValue = "") String path) {
-        return data( fileManager.listFiles(path));
+        return data(fileManager.listFiles(path));
     }
+
+    @GetMapping("tree")
+    @ApiOperation("获取文件树形结构")
+    @ApiOperationSupport(order = 9, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取文件树形结构", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<FileTreeNode> tree() {
+        return data(fileManager.listFilesAsTree());
+    }
+
 
 }

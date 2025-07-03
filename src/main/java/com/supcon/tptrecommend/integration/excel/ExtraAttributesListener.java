@@ -21,7 +21,7 @@ public class ExtraAttributesListener  extends AnalysisEventListener<Map<Integer,
 
     private int rowCount = 0;
 
-    private List<String> originalHeaders;
+    private final List<List<String>> originalHeaders = new ArrayList<>();
 
 
     @Override
@@ -38,7 +38,7 @@ public class ExtraAttributesListener  extends AnalysisEventListener<Map<Integer,
 
     @Override
     public void invokeHeadMap(Map<Integer, String> headMap, AnalysisContext context) {
-        this.originalHeaders = new ArrayList<>(headMap.values());
+        originalHeaders.add(new ArrayList<>(headMap.values()));
     }
 
 }

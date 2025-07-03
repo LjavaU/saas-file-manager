@@ -1,6 +1,6 @@
 package com.supcon.tptrecommend.convert.fileobject;
 
-import com.supcon.tptrecommend.common.utils.FileSizeFormatter;
+import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.entity.FileObject;
@@ -29,7 +29,7 @@ public interface FileObjectConvert {
 
     // 自定义方法
     default String mapFileSize(Long fileSize) {
-        return FileSizeFormatter.formatFileSize(fileSize);
+        return FileUtils.formatFileSize(fileSize);
 
     }
 }

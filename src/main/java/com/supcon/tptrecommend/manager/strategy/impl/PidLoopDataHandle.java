@@ -12,6 +12,12 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * PID 业务处理器
+ *
+ * @author luhao
+ * @since 2025/07/02 10:48:42
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j

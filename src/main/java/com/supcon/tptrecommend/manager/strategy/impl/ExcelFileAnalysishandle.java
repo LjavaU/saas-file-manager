@@ -3,8 +3,11 @@ package com.supcon.tptrecommend.manager.strategy.impl;
 import cn.hutool.core.lang.TypeReference;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.read.builder.ExcelReaderBuilder;
+import com.alibaba.excel.support.ExcelTypeEnum;
 import com.google.common.collect.Sets;
 import com.supcon.systemcommon.exception.ServerException;
+import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.MarkdownConverter;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
@@ -98,12 +101,19 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      */
     private void doHandle(File file, Long fileId, String originalFilename) {
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
-        EasyExcel.read(file, extraAttributesListener).sheet().doRead();
+        ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);
+        String fileSuffix = FileUtils.getFileSuffix(originalFilename);
+        if ("csv".equals(fileSuffix)) {
+            readerBuilder
+                .excelType(ExcelTypeEnum.CSV)
+                .charset(FileUtils.detectCharset(file));
+        }
+        readerBuilder.sheet().headRowNumber(5).doRead();
         // 获取表头
-        List<String> excelHeaders = extraAttributesListener.getOriginalHeaders();
+        List<List<String>> excelHeaders = extraAttributesListener.getOriginalHeaders();
         // 获取行数
         int rowCount = extraAttributesListener.getRowCount();
-        String headerMarkdown = MarkdownConverter.generateMarkdownTable(Collections.singletonList(excelHeaders));
+        String headerMarkdown = MarkdownConverter.generateMarkdownTable(excelHeaders);
         if (headerMarkdown == null) {
             log.warn("文件：{}表头转换为markdown为空", originalFilename);
             throw new ServerException("文件表头转换为markdown为空");
@@ -154,11 +164,11 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      */
     private FileAlignmentResp getFileHeaderMapping(String excelHeaderMarkdown, String dataBaseSchema, String originalFilename) {
         FileAlignmentResp alignmentResp = llmFeign.alignment(FileAlignmentReq.builder()
-                .excelHeader(excelHeaderMarkdown)
-                .databaseSchema(dataBaseSchema)
-                .subcategory(0)
-                .documentType("")
-                .build());
+            .excelHeader(excelHeaderMarkdown)
+            .databaseSchema(dataBaseSchema)
+            .subcategory(0)
+            .documentType("")
+            .build());
         if (Objects.isNull(alignmentResp)) {
             log.warn("文件：{}，LLM实体映射失败", originalFilename);
             throw new ServerException("文件实体映射失败");
@@ -178,8 +188,8 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      */
     private FileClassifyResp classifyFile(String headerMarkdown, String originalFilename) {
         FileClassifyResp classifyResp = llmFeign.classify(FileClassifyReq.builder()
-                .headMarkdownContent(headerMarkdown)
-                .documentType("excel").build());
+            .headMarkdownContent(headerMarkdown)
+            .documentType("excel").build());
         if (Objects.isNull(classifyResp)) {
             log.warn("文件：{}，LLM分类失败", originalFilename);
             throw new ServerException("文件分类失败");
