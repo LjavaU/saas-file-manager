@@ -388,8 +388,6 @@ public class FileManagerImpl implements FileManager {
 
         // 用于最终返回的列表
         List<FileNodeResp> fileNodes = new ArrayList<>();
-        // 用于记录已经计数过的文件名
-        Set<String> counted = new HashSet<>();
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
             // 移除前缀，得到相对路径
@@ -407,12 +405,12 @@ public class FileManagerImpl implements FileManager {
                 fileNodes.add(node);
             } else {
                 // 包含'/'，说明在子文件夹下
+                // 把含有文件的路径跳过，只把文件夹添加到列表中
+                if (relativePath.indexOf("/") !=  relativePath.length()-1) {
+                     continue;
+                }
                 // 只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, relativePath.indexOf('/'));
-                if (counted.contains(folderName)) {
-                    continue;
-                }
-                counted.add(folderName);
                 // 获取该文件夹下的文件数量
                 int count = minioUtils.countFilePrefix(bucket, path + folderName);
                 getFileFolderNodeResp(path, fileObject, folderName, count, fileNodes);
