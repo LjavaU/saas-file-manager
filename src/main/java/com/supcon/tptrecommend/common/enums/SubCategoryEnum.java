@@ -32,7 +32,8 @@ public enum SubCategoryEnum {
     OPERATING_PROCEDURE_DEVICE(17, "操作规程装置"),
     PROCESS_INDEX_COMPOSITION(18, "工艺指标组成"),
     DCS_POINT_TABLE_FB(19, "DCS点表FB"),
-    EARLY_WARNING_PROCESS_ABNORMALITIES(20, "工艺异常预警");
+    EARLY_WARNING_PROCESS_ABNORMALITIES(20, "工艺异常预警"),
+    METRICS_BUSINESS_REPORT_DATA(21, "指标业务报表数据");
 
     private final int code;
     private final String description;

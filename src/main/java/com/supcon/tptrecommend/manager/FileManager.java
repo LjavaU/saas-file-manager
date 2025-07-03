@@ -3,10 +3,7 @@ package com.supcon.tptrecommend.manager;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
-import com.supcon.tptrecommend.dto.fileobject.CreateFolderReq;
-import com.supcon.tptrecommend.dto.fileobject.FileNodeResp;
-import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
-import com.supcon.tptrecommend.dto.fileobject.SingleFileQueryReq;
+import com.supcon.tptrecommend.dto.fileobject.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -95,4 +92,15 @@ public interface FileManager {
      * @since 2025/06/12 14:11:37
      */
     List<FileNodeResp> listFiles(String path);
+
+    /**
+     * 将文件列表转换为树
+     *
+     * @return {@link FileTreeNode }
+     * @author luhao
+     * @since 2025/07/03 16:20:34
+     */
+    FileTreeNode listFilesAsTree();
+
+
 }

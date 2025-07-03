@@ -11,9 +11,9 @@ import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
-import com.supcon.systemcommon.exception.SupException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.utils.FileSizeFormatter;
+import com.supcon.tptrecommend.common.enums.FileKind;
+import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
@@ -107,7 +107,7 @@ public class FileManagerImpl implements FileManager {
         if (StrUtil.isBlank(attributes)) {
             if (Objects.nonNull(filePath)) {
                 CompletableFuture.runAsync(() -> {
-                    fileAnalysisHandleFactory.getHandler(getFileSuffix(originalFilename))
+                    fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename))
                         .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
                 }, EXECUTOR).exceptionally(throwable -> {
                     log.error("文件：{},在读取或者解析过程失败", originalFilename, throwable);
@@ -132,27 +132,6 @@ public class FileManagerImpl implements FileManager {
     private void markFileAsParseFailed(Long fileId) {
         updateFileStatusParseFailed(fileId);
         ProcessProgressSupport.notifyParseComplete(fileId);
-    }
-
-    /**
-     * 获取文件后缀
-     *
-     * @param originalFilename 原始文件名
-     * @return {@link String }
-     * @author luhao
-     * @since 2025/06/19 10:18:57
-     */
-    private String getFileSuffix(String originalFilename) {
-        if (originalFilename == null) {
-            return "";
-        }
-
-        int dotIndex = originalFilename.lastIndexOf('.');
-        if (dotIndex == -1) {
-            return "";
-        }
-
-        return originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
     }
 
     /**
@@ -234,12 +213,7 @@ public class FileManagerImpl implements FileManager {
      * @date 2025/05/22 14:11:08
      */
     public String getPath(LoginInfoUserDTO user) {
-        String tenant = TenantContext.getCurrentTenant();
-        try {
-            return tenant + FILE_SPLIT + user.getUsername() + FILE_SPLIT;
-        } catch (SupException exception) {
-            return tenant + FILE_SPLIT + user.getUsername() + FILE_SPLIT;
-        }
+        return TenantContext.getCurrentTenant() + FILE_SPLIT + user.getUsername() + FILE_SPLIT;
 
 
     }
@@ -268,7 +242,7 @@ public class FileManagerImpl implements FileManager {
         return true;
     }
 
-    private void deleteFileObjectHierarchy(String objectName,long id) {
+    private void deleteFileObjectHierarchy(String objectName, long id) {
         // 以“/”结尾的是目录，则删除目录及目录下的所有文件
         if (objectName.endsWith("/")) {
             fileObjectService.remove(Wrappers.<FileObject>lambdaQuery()
@@ -365,6 +339,9 @@ public class FileManagerImpl implements FileManager {
     public boolean createFolder(CreateFolderReq data) {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
         String folderName = data.getFolderName();
+        if (folderName.contains("_") || (folderName.contains("/") && !folderName.endsWith("/"))) {
+            throw new ClientException("文件夹名称不能包含下划线或者斜杠");
+        }
         // 确保 folderName 以斜杠结尾
         if (!folderName.endsWith(FILE_SPLIT)) {
             folderName += FILE_SPLIT;
@@ -411,8 +388,6 @@ public class FileManagerImpl implements FileManager {
 
         // 用于最终返回的列表
         List<FileNodeResp> fileNodes = new ArrayList<>();
-        // 用于临时存储直接子文件夹的名称，利用Set自动去重
-        Set<Folder> folderNames = new HashSet<>();
         // 用于记录已经计数过的文件名
         Set<String> counted = new HashSet<>();
         for (FileObject fileObject : fileObjects) {
@@ -433,34 +408,16 @@ public class FileManagerImpl implements FileManager {
             } else {
                 // 包含'/'，说明在子文件夹下
                 // 只取第一个'/'之前的部分，作为文件夹名
-                String folderName = relativePath.substring(0, slashIndex);
+                String folderName = relativePath.substring(0, relativePath.indexOf('/'));
                 if (counted.contains(folderName)) {
                     continue;
                 }
                 counted.add(folderName);
                 // 获取该文件夹下的文件数量
                 int count = minioUtils.countFilePrefix(bucket, path + folderName);
-                folderNames.add(Folder.builder()
-                    .id(fileObject.getId())
-                    .uploadTime(fileObject.getCreateTime())
-                    .name(folderName)
-                    .fileCount(count)
-
-                    .build());
+                getFileFolderNodeResp(path, fileObject, folderName, count, fileNodes);
             }
 
-        }
-        // 4. 将去重后的文件夹名称转换为FileNode对象
-        for (Folder folder : folderNames) {
-            FileNodeResp node = new FileNodeResp();
-            node.setId(folder.getId());
-            node.setType("folder");
-            node.setName(folder.getName());
-            node.setUploadTime(folder.getUploadTime());
-            node.setFileCount(folder.getFileCount());
-            // 文件夹的路径要以'/'结尾
-            node.setPath(path + folder.getName() + FILE_SPLIT);
-            fileNodes.add(node);
         }
 
         // 先按照文件夹进行排序，再按照上传时间进行排序
@@ -468,20 +425,72 @@ public class FileManagerImpl implements FileManager {
         return fileNodes;
     }
 
+    private void getFileFolderNodeResp(String path, FileObject fileObject, String folderName, int fileCount, List<FileNodeResp> fileNodes) {
+        FileNodeResp node = new FileNodeResp();
+        node.setId(fileObject.getId());
+        node.setType(FileKind.FOLDER.getValue());
+        node.setName(folderName);
+        node.setUploadTime(fileObject.getCreateTime());
+        node.setFileCount(fileCount);
+        // 文件夹的路径要以'/'结尾
+        node.setPath(path + folderName + FILE_SPLIT);
+        fileNodes.add(node);
+    }
+
     @NotNull
     private FileNodeResp getFileNodeResp(FileObject fileObject, String relativePath, String objectName) {
         FileNodeResp node = new FileNodeResp();
         node.setId(fileObject.getId());
-        node.setType("file");
+        node.setType(FileKind.FILE.getValue());
         node.setName(relativePath.substring(relativePath.indexOf("_") + 1));
         node.setPath(objectName);
         node.setCategory(fileObject.getCategory());
         node.setAbility(fileObject.getAbility());
         node.setContentOverview(fileObject.getContentOverview());
         node.setFileStatus(fileObject.getFileStatus());
-        node.setSize(FileSizeFormatter.formatFileSize(fileObject.getFileSize()));
+        node.setSize(FileUtils.formatFileSize(fileObject.getFileSize()));
         node.setUploadTime(fileObject.getCreateTime());
         return node;
     }
 
+    /**
+     * 将文件列转换为树
+     *
+     * @return {@link FileTreeNode }
+     * @author luhao
+     * @since 2025/07/03 16:22:05
+     */
+    @Override
+    public FileTreeNode listFilesAsTree() {
+        // 2. 创建根节点
+        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "");
+
+        // 3. 递归列出所有对象
+        String path = getPath(LoginUserUtils.getLoginUserInfo());
+        List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
+            .likeRight(FileObject::getObjectName, path));
+
+        // 4. 遍历对象并构建树
+        for (FileObject fileObject : fileObjects) {
+            String objectName = fileObject.getObjectName();
+            // 移除前缀，得到相对路径
+            String relativePath = objectName.substring(path.length());
+            FileTreeNode currentNode = root;
+            String[] parts = relativePath.split("/");
+            for (int i = 0; i < parts.length; i++) {
+                String part = parts[i];
+                boolean isFile = (i == parts.length - 1 && StrUtil.isAllNotEmpty(fileObject.getOriginalName(), fileObject.getContentType()));
+                Long id = fileObject.getId();
+                if (isFile) {
+                    // 文件节点
+                    currentNode.findOrCreateChild(part.substring(part.indexOf("_") + 1), id, FileKind.FILE.getValue(), objectName);
+                } else {
+                    // 文件夹节点
+                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1));
+                }
+            }
+
+        }
+        return root;
+    }
 }
