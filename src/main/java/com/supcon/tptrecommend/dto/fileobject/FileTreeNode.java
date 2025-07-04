@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Data
@@ -37,15 +38,26 @@ public class FileTreeNode {
         this.path = path;
     }
 
-    // 辅助方法：查找或创建子节点
+    /**
+     * 查找或创建子节点
+     *
+     * @param childName 子项名称
+     * @param id        文件id
+     * @param type      类型
+     * @param path      路径
+     * @return {@link FileTreeNode }
+     * @author luhao
+     * @since 2025/07/04 11:12:16
+     */
     public FileTreeNode findOrCreateChild(String childName, Long id, String type,String path) {
         for (FileTreeNode child : this.children) {
             if (child.getName().equals(childName)) {
                 return child;
             }
         }
-        FileTreeNode newChild = new FileTreeNode(id, childName, type,path);
+        FileTreeNode newChild = new FileTreeNode(id, childName.substring(childName.indexOf("_") + 1), type,path);
         this.children.add(newChild);
+        this.children.sort(Comparator.comparing(FileTreeNode::getType).reversed());
         return newChild;
     }
 }

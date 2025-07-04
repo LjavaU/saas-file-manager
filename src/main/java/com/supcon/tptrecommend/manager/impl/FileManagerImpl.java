@@ -338,14 +338,13 @@ public class FileManagerImpl implements FileManager {
     @Override
     public boolean createFolder(CreateFolderReq data) {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
-        String folderName = data.getFolderName();
-        if (folderName.contains("_") || (folderName.contains("/") && !folderName.endsWith("/"))) {
-            throw new ClientException("文件夹名称不能包含下划线或者斜杠");
+        // 去除文件夹名的空格和换行符
+        String folderName = data.getFolderName().trim().replaceAll("[\\n\\r]", "");
+        if (folderName.contains("_") || folderName.contains("/")) {
+            throw new ClientException("文件夹名称不能包含特殊字符/_");
         }
         // 确保 folderName 以斜杠结尾
-        if (!folderName.endsWith(FILE_SPLIT)) {
-            folderName += FILE_SPLIT;
-        }
+        folderName += FILE_SPLIT;
         String path = getPath(user) + folderName;
         minioUtils.createFolder(bucket, path);
         saveFolderToDB(user, path);
@@ -406,8 +405,8 @@ public class FileManagerImpl implements FileManager {
             } else {
                 // 包含'/'，说明在子文件夹下
                 // 把含有文件的路径跳过，只把文件夹添加到列表中
-                if (relativePath.indexOf("/") !=  relativePath.length()-1) {
-                     continue;
+                if (relativePath.indexOf("/") != relativePath.length() - 1) {
+                    continue;
                 }
                 // 只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, relativePath.indexOf('/'));
@@ -481,7 +480,7 @@ public class FileManagerImpl implements FileManager {
                 Long id = fileObject.getId();
                 if (isFile) {
                     // 文件节点
-                    currentNode.findOrCreateChild(part.substring(part.indexOf("_") + 1), id, FileKind.FILE.getValue(), objectName);
+                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName);
                 } else {
                     // 文件夹节点
                     currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1));
