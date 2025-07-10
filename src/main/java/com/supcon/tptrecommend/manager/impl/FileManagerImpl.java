@@ -13,6 +13,7 @@ import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.enums.FileKind;
+import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
@@ -65,7 +66,7 @@ public class FileManagerImpl implements FileManager {
 
     private final Executor EXECUTOR = new ThreadPoolExecutor(10, 20,
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
-        new ThreadPoolExecutor.AbortPolicy());
+        new ThreadPoolExecutor.CallerRunsPolicy());
 
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
@@ -105,21 +106,33 @@ public class FileManagerImpl implements FileManager {
         // 把上传的文件临时保存
         String filePath = saveFileTemporary(file, uniqueFilename);
         if (StrUtil.isBlank(attributes)) {
-            if (Objects.nonNull(filePath)) {
-                CompletableFuture.runAsync(() -> {
-                    fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename))
-                        .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
-                }, EXECUTOR).exceptionally(throwable -> {
-                    log.error("文件：{},在读取或者解析过程失败", originalFilename, throwable);
-                    markFileAsParseFailed(fileId);
-                    return null;
-                });
-            } else {
-                markFileAsParseFailed(fileId);
-            }
+            processFileAnalysis(filePath, originalFilename, fileId);
 
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
+    }
+
+    private void processFileAnalysis(String filePath, String originalFilename, Long fileId) {
+        if (Objects.nonNull(filePath)) {
+            CompletableFuture.runAsync(() -> {
+                fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename))
+                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
+            }, EXECUTOR).exceptionally(throwable -> {
+                // 删除临时文件
+                if (throwable.getCause() instanceof UnsupportedFileTypeException) {
+                    try {
+                        Files.deleteIfExists(Paths.get(filePath));
+                    } catch (IOException e) {
+                        log.error("删除临时文件失败: {}", filePath, e);
+                    }
+                }
+                log.error("文件：{},在读取或者解析过程失败", originalFilename, throwable);
+                markFileAsParseFailed(fileId);
+                return null;
+            });
+        } else {
+            markFileAsParseFailed(fileId);
+        }
     }
 
     private void updateFileStatusParseFailed(Long fileId) {
