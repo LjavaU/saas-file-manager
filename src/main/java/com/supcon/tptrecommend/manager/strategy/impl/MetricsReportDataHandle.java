@@ -39,6 +39,7 @@ public class MetricsReportDataHandle implements BusinessDataHandler {
 
     @Override
     public void processDirectly(File file, Long fileId, int rowCount) {
+        // 把file转换为mutipartFile
         log.info("开始处理指标业务报表数据");
 
     }

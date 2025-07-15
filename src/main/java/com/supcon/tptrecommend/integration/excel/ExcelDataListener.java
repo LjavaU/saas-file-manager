@@ -79,7 +79,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
             Object entity = objectMapper.convertValue(entityPropertyMap, handler.getEntityClass());
             entityList.add(entity);
         } catch (Exception e) {
-            log.error("数据转换失败 {}: ", rowData, e);
+            log.error("数据转换失败:{}", e.getMessage());
         }
         // 3. 达到批处理阈值，执行插入
         if (entityList.size() >= Constants.READ_BATCH_SIZE) {
