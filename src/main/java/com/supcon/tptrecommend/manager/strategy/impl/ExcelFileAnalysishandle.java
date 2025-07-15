@@ -100,6 +100,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
      * @since 2025/06/25 19:09:11
      */
     private void doHandle(File file, Long fileId, String originalFilename) {
+        // 获取表头和数据总记录行数
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
         ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);
         String fileSuffix = FileUtils.getFileSuffix(originalFilename);
@@ -113,12 +114,14 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         List<List<String>> excelHeaders = extraAttributesListener.getOriginalHeaders();
         // 获取行数
         int rowCount = extraAttributesListener.getRowCount();
+        // 把表头转换为markdown
         String headerMarkdown = MarkdownConverter.generateMarkdownTable(excelHeaders);
         if (headerMarkdown == null) {
             log.warn("文件：{}表头转换为markdown为空", originalFilename);
             throw new ServerException("文件表头转换为markdown为空");
 
         }
+        // 把文件进行分类
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
         updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
@@ -127,6 +130,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
         if (handlerOptional.isPresent()) {
             BusinessDataHandler businessDataHandler = handlerOptional.get();
+            // 判断是否直接处理
             if (businessDataHandler.isDirectHandler()) {
                 // 更新文件解析状态为完成
                 updateFileParsed(fileId);
@@ -141,8 +145,15 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
             Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
             }, true);
+            // 创建Excel数据监听器
             ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount);
-            EasyExcel.read(file, excelDataListener).sheet().doRead();
+            ExcelReaderBuilder read = EasyExcel.read(file, excelDataListener);
+            if ("csv".equals(fileSuffix)) {
+                read
+                    .excelType(ExcelTypeEnum.CSV)
+                    .charset(FileUtils.detectCharset(file));
+            }
+            read.sheet().doRead();
         } else {
             updateFileParsed(fileId);
             ProcessProgressSupport.notifyParseComplete(fileId);
@@ -173,6 +184,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             log.warn("文件：{}，LLM实体映射失败", originalFilename);
             throw new ServerException("文件实体映射失败");
         }
+        log.info("文件：{}，LLM实体映射成功，结构体为:{}", originalFilename, JSONUtil.toJsonStr(alignmentResp.getData()));
         return alignmentResp;
 
     }
