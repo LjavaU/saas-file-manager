@@ -3,6 +3,7 @@ package com.supcon.tptrecommend.dto.fileobject;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
+import org.hibernate.validator.constraints.Length;
 
 import javax.validation.constraints.NotBlank;
 
@@ -11,5 +12,6 @@ import javax.validation.constraints.NotBlank;
 public class CreateFolderReq {
     @ApiModelProperty(value = "文件夹名称")
     @NotBlank(message = "文件夹名称不能为空")
+    @Length(max = 30, message = "文件夹名称不能超过30个字符")
     private String folderName;
 }
