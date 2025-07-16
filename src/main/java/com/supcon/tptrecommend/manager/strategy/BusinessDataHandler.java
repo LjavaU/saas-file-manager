@@ -36,7 +36,9 @@ public interface BusinessDataHandler {
      * @author luhao
      * @since 2025/06/24 16:44:51
      */
-    Class<?> getEntityClass();
+    default Class<?> getEntityClass(){
+        throw new UnsupportedOperationException();
+    }
 
 
 

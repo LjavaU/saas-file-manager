@@ -35,7 +35,7 @@ mybatis-plus:
     #log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 service:
   llm:
-    address: http://10.16.11.25:9300
+    address: http://supcon-file-parsing-indu-dev.supcon5t.com
   dataHub:
     address: http://data-hub-obp-dev.supcon5t.com
   tempLabel:
@@ -44,5 +44,7 @@ service:
     address: http://auto-supervision-gpt-dev.supcon5t.com
   pid:
     address: http://obp-dev.supcon5t.com/xpt-tpt-pid/
+  index:
+    address: http://tpt-index-gpt-dev.supcon5t.com/indicator/report/excel/upload
 file:
   upload-dir: D:/temp/uploads
