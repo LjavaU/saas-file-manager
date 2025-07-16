@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.convert.filedata.DynamicMapper;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,8 +37,9 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
     private int lastReportedProgress = -1;
     private final int startProgress = 40;
     private final Long fileId;
+    private final DynamicMapper<Object, Object> dynamicMapper;
 
-    public ExcelDataListener(Map<String, String> mapping, BusinessDataHandler handler, Long fileId, int totalCount) {
+    public ExcelDataListener(Map<String, String> mapping, BusinessDataHandler handler, Long fileId, int totalCount, DynamicMapper<Object, Object> mapper) {
         this.excelHeaderToEntityFieldMap = mapping;
         this.handler = handler;
         // 初始化ObjectMapper，并注册Java 8时间模块以正确处理日期
@@ -45,6 +47,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         this.objectMapper.registerModule(new JavaTimeModule());
         this.fileId = fileId;
         this.totalCount = totalCount;
+        this.dynamicMapper = mapper;
         // 如果实体属性是驼峰命名(camelCase)，而数据库是下划线(snake_case)，可以在此配置转换策略
         // this.objectMapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
     }
@@ -76,8 +79,13 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         try {
             // 2. 使用ObjectMapper将Map转换为对应的实体对象！
             // handler.getEntityClass() 动态地告诉ObjectMapper要转换成哪个类的实例
-            Object entity = objectMapper.convertValue(entityPropertyMap, handler.getEntityClass());
-            entityList.add(entity);
+            if (dynamicMapper != null) {
+                entityList.add(dynamicMapper.map(entityPropertyMap));
+            } else {
+                Object entity = objectMapper.convertValue(entityPropertyMap, handler.getEntityClass());
+                entityList.add(entity);
+            }
+
         } catch (Exception e) {
             log.error("数据转换失败:{}", e.getMessage());
         }

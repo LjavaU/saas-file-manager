@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * 位号组态数据处理
@@ -40,11 +39,6 @@ public class TagConfigurationDataHandle implements BusinessDataHandler {
     @Override
     public void batchSave(List<Object> dataList) {
         List<TagInfoCreateReq> tagInfoCreateReqs = castTargetObject(dataList, TagInfoCreateReq.class);
-        tagInfoCreateReqs.forEach(tagInfoCreateReq -> {
-            if (Objects.isNull(tagInfoCreateReq.getTagType())) {
-                tagInfoCreateReq.setTagType(4);
-            }
-        });
         SupResult<List<TagInfoResp>> listSupResult = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
         if (listSupResult.getSuccess()) {
             log.info("位号组态数据保存成功");

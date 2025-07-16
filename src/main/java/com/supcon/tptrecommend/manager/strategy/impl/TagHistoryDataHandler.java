@@ -38,6 +38,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
 
     private final DataHubFeign dataHubFeign;
 
+
     @Override
     public Integer getBusinessKey() {
         return SubCategoryEnum.TAG_HISTORICAL_DATA.getCode();
@@ -51,11 +52,11 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
     @Override
     public void batchSave(List<Object> dataList) {
         List<TagValueDTO> tagValueDTOS = castTargetObject(dataList, TagValueDTO.class);
-        SupResult<Boolean> booleanSupResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
-        if (booleanSupResult.getSuccess()) {
+        SupResult<Boolean> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
+        if (supResult.getSuccess()) {
             log.info("位号历史数据保存成功");
         } else {
-            log.error("位号历史数据保存失败");
+            log.error("位号历史数据保存失败：{}",supResult.getMsg());
         }
     }
 

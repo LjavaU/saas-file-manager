@@ -11,6 +11,7 @@ import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.MarkdownConverter;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
+import com.supcon.tptrecommend.convert.filedata.DynamicMapper;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.LlmFeign;
 import com.supcon.tptrecommend.feign.entity.llm.FileAlignmentReq;
@@ -22,6 +23,7 @@ import com.supcon.tptrecommend.integration.excel.ExtraAttributesListener;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandlerFactory;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
+import com.supcon.tptrecommend.manager.strategy.MapperFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     private final LlmFeign llmFeign;
     public static final Set<Long> STOP_SIGNAL_CACHE = Sets.newConcurrentHashSet();
     private final BusinessDataHandlerFactory businessDataHandlerFactory;
+    private final MapperFactory mapperFactory;
 
     /**
      * 处理文件分析
@@ -104,11 +107,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
         ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);
         String fileSuffix = FileUtils.getFileSuffix(originalFilename);
-        if ("csv".equals(fileSuffix)) {
-            readerBuilder
-                .excelType(ExcelTypeEnum.CSV)
-                .charset(FileUtils.detectCharset(file));
-        }
+        setCsvFileEncoding(file, fileSuffix, readerBuilder);
         readerBuilder.sheet().headRowNumber(5).doRead();
         // 获取表头
         List<List<String>> excelHeaders = extraAttributesListener.getOriginalHeaders();
@@ -127,7 +126,9 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
         // 通知解析进程【LLM分类成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+        // 根据业务分类找出业务处理器
         Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
+        // 一些业务不需要LLM给出数据映射，直接处理
         if (handlerOptional.isPresent()) {
             BusinessDataHandler businessDataHandler = handlerOptional.get();
             // 判断是否直接处理
@@ -137,7 +138,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
                 businessDataHandler.processDirectly(file, fileId, rowCount);
                 return;
             }
-            // 获取大模型返回的映射
+            // 获取大模型返回的实体映射
             FileAlignmentResp alignmentResp = getFileHeaderMapping(headerMarkdown, JSONUtil.toJsonStr(businessDataHandler.getDbSchemaDescription()), originalFilename);
             // 更新文件解析转态
             updateFileParsed(fileId);
@@ -145,14 +146,11 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
             ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
             Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
             }, true);
+            DynamicMapper<Object, Object> dynamicMapper = mapperFactory.getMapper(fileClassifyResp.getSubcategory());
             // 创建Excel数据监听器
-            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount);
+            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount, dynamicMapper);
             ExcelReaderBuilder read = EasyExcel.read(file, excelDataListener);
-            if ("csv".equals(fileSuffix)) {
-                read
-                    .excelType(ExcelTypeEnum.CSV)
-                    .charset(FileUtils.detectCharset(file));
-            }
+            setCsvFileEncoding(file, fileSuffix, read);
             read.sheet().doRead();
         } else {
             updateFileParsed(fileId);
@@ -161,6 +159,14 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         }
 
 
+    }
+
+    private  void setCsvFileEncoding(File file, String fileSuffix, ExcelReaderBuilder readerBuilder) {
+        if ("csv".equals(fileSuffix)) {
+            readerBuilder
+                .excelType(ExcelTypeEnum.CSV)
+                .charset(FileUtils.detectCharset(file));
+        }
     }
 
     /**
