@@ -353,6 +353,9 @@ public class FileManagerImpl implements FileManager {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
         // 去除文件夹名的空格和换行符
         String folderName = data.getFolderName().trim().replaceAll("[\\n\\r]", "");
+        if(StrUtil.isBlank(folderName)){
+            throw new ClientException("文件夹名称不能为空");
+        }
         if (folderName.contains("_") || folderName.contains("/")) {
             throw new ClientException("文件夹名称不能包含特殊字符/_");
         }
@@ -372,7 +375,7 @@ public class FileManagerImpl implements FileManager {
             .eq(FileObject::getUserName, user.getUsername()));
         // 如果存在，则不保存
         if (count > 0) {
-            return;
+            throw new ClientException("已存在相同的文件夹名称");
         }
         fileObjectService.saveObj(FileObjectCreateReq.builder()
             .userId(user.getId())

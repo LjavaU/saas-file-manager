@@ -100,7 +100,7 @@ public class FileController extends BasicController {
     @ApiOperation("创建文件夹")
     @ApiOperationSupport(order = 7, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<Boolean> createFolder(@RequestBody SupRequestBody<CreateFolderReq> req) {
+    public SupResult<Boolean> createFolder(@RequestBody @Valid SupRequestBody<CreateFolderReq> req) {
         return data(fileManager.createFolder(req.getData()));
     }
 
