@@ -348,6 +348,7 @@ public class FileManagerImpl implements FileManager {
         return true;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public boolean createFolder(CreateFolderReq data) {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
@@ -362,8 +363,8 @@ public class FileManagerImpl implements FileManager {
         // 确保 folderName 以斜杠结尾
         folderName += FILE_SPLIT;
         String path = getPath(user) + folderName;
-        minioUtils.createFolder(bucket, path);
         saveFolderToDB(user, path);
+        minioUtils.createFolder(bucket, path);
         return true;
     }
 
