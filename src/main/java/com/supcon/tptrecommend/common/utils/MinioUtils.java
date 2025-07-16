@@ -362,6 +362,8 @@ public class MinioUtils {
 
         } catch (Exception e) {
             log.error("创建文件夹:{}失败: ", folderName, e);
+            throw new ServerException("文件夹创建失败");
+
         }
     }
 
