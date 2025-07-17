@@ -75,11 +75,12 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     }
 
 
-    private void updateFileParseMetadata(Long fileId, String category, String summary) {
+    private void updateFileParseMetadata(Long fileId, String category, String summary, Integer subcategory) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setCategory(category);
         fileObject.setContentOverview(summary);
+        fileObject.setSubCategory(subcategory);
         fileObjectService.updateById(fileObject);
     }
 
@@ -123,36 +124,33 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         // 把文件进行分类
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
-        updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(String.valueOf(fileClassifyResp.getCategory())), fileClassifyResp.getSummary());
+        updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(),fileClassifyResp.getSubcategory());
         // 通知解析进程【LLM分类成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
         // 根据业务分类找出业务处理器
         Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
-        // 一些业务不需要LLM给出数据映射，直接处理
+        // 如果有业务处理器，则进行数据处理
         if (handlerOptional.isPresent()) {
             BusinessDataHandler businessDataHandler = handlerOptional.get();
-            // 判断是否直接处理
+            //  一些业务不需要LLM给出数据映射，直接处理
             if (businessDataHandler.isDirectHandler()) {
-                // 更新文件解析状态为完成
-                updateFileParsed(fileId);
                 businessDataHandler.processDirectly(file, fileId, rowCount);
                 return;
             }
             // 获取大模型返回的实体映射
             FileAlignmentResp alignmentResp = getFileHeaderMapping(headerMarkdown, JSONUtil.toJsonStr(businessDataHandler.getDbSchemaDescription()), originalFilename);
-            // 更新文件解析转态
-            updateFileParsed(fileId);
             // 通知解析进程【LLM实体映射成功】
             ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
             Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
             }, true);
+            // 根据业务分类获取动态数据映射器
             DynamicMapper<Object, Object> dynamicMapper = mapperFactory.getMapper(fileClassifyResp.getSubcategory());
             // 创建Excel数据监听器
             ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount, dynamicMapper);
             ExcelReaderBuilder read = EasyExcel.read(file, excelDataListener);
             setCsvFileEncoding(file, fileSuffix, read);
             read.sheet().doRead();
-        } else {
+        } else { // 无业务处理器，则直接更新文件解析状态
             updateFileParsed(fileId);
             ProcessProgressSupport.notifyParseComplete(fileId);
 

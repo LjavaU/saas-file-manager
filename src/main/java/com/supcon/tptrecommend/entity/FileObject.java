@@ -85,16 +85,16 @@ public class FileObject extends BasicEntity<Long> {
     @AllArgsConstructor
     @Getter
     public enum Category {
-        SYSTEM("0","系统配置"),
-        BASIC_DATA("1","基础数据"),
-        DYNAMIC_DATA("2","动态数据"),
-        BUSINESS_DATA("3","业务数据");
+        SYSTEM(0,"系统配置"),
+        BASIC_DATA(1,"基础数据"),
+        DYNAMIC_DATA(2,"动态数据"),
+        BUSINESS_DATA(3,"业务数据");
 
-        private final String code;
+        private final Integer code;
         private final String value;
 
         // 根据code获取value
-        public static String getValueByCode(String code) {
+        public static String getValueByCode(Integer code) {
             for (Category category : Category.values()) {
                 if (category.code.equals(code)) {
                     return category.value;

@@ -44,9 +44,7 @@ public class PidLoopDataHandle implements BusinessDataHandler {
                 || "PIDEX".equalsIgnoreCase(dcsLoopMetadatum.getFunctionBlockType())).collect(Collectors.toList());
         for (DcsLoopMetadata dcsLoopMetadatum : dcsLoopMetadataList) {
             SupResult<Object> addLoop = pidFeign.addLoop(dcsLoopMetadatum);
-            if (addLoop.getSuccess()) {
-                log.info("PID回路数据保存成功");
-            } else {
+            if (!addLoop.getSuccess()) {
                 log.error("PID回路数据保存失败:{}", addLoop.getMsg());
             }
         }

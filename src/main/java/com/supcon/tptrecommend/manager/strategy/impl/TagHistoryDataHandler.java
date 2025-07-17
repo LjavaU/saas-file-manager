@@ -12,9 +12,11 @@ import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.DateParserUtil;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.DataHubFeign;
 import com.supcon.tptrecommend.feign.entity.datahub.TagValueDTO;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
+import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -38,6 +40,8 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
 
     private final DataHubFeign dataHubFeign;
 
+    private final IFileObjectService fileObjectService;
+
 
     @Override
     public Integer getBusinessKey() {
@@ -53,10 +57,8 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
     public void batchSave(List<Object> dataList) {
         List<TagValueDTO> tagValueDTOS = castTargetObject(dataList, TagValueDTO.class);
         SupResult<Boolean> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
-        if (supResult.getSuccess()) {
-            log.info("位号历史数据保存成功");
-        } else {
-            log.error("位号历史数据保存失败：{}",supResult.getMsg());
+        if (!supResult.getSuccess()) {
+            log.error("位号历史数据保存失败：{}", supResult.getMsg());
         }
     }
 
@@ -116,7 +118,9 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
             if (!entities.isEmpty()) {
                 batchSave(entities);
             }
-
+            entities.clear();
+            // 更新文件解析状态为成功
+            fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
             ProcessProgressSupport.notifyParseComplete(fileId);
         }
 
