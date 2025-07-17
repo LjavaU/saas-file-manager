@@ -97,7 +97,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         int lastReportedProgress = 0;
         // 存储结果的数组
         JSONArray resultArray = new JSONArray();
-        String category = null;
+        Integer category = null;
         String summary = null;
         for (int i = 0; i < totalSegments; i++) {
             // TODO:// 限制段数

@@ -16,7 +16,7 @@ import javax.validation.Valid;
 import java.util.List;
 
 /**
- *数据中心服务
+ * 数据中心服务
  *
  * @author luhao
  * @since 2025/06/25 18:38:19
@@ -33,7 +33,7 @@ public interface DataHubFeign {
      * @since 2025/06/25 18:38:16
      */
     @PostMapping("/api/tag-info/batchAdd")
-     SupResult<List<TagInfoResp>> batchAdd(@Valid @RequestBody SupRequestBody<List<TagInfoCreateReq>> body);
+    SupResult<List<TagInfoResp>> batchAdd(@Valid @RequestBody SupRequestBody<List<TagInfoCreateReq>> body);
 
     /**
      * 批量添加位号历史数据
@@ -45,6 +45,7 @@ public interface DataHubFeign {
      */
     @PostMapping("/api/tag-value/importTagValue")
     SupResult<Boolean> importTagValue(@RequestBody @Valid SupRequestBody<List<TagValueDTO>> body);
+
     @Slf4j
     @Component
     class DataHubFeignFallBack implements FallbackFactory<DataHubFeign> {
@@ -54,7 +55,7 @@ public interface DataHubFeign {
             log.error("数据中心服务调用出错", cause);
             return new DataHubFeign() {
                 @Override
-                public  SupResult<List<TagInfoResp>> batchAdd(@Valid @RequestBody SupRequestBody<List<TagInfoCreateReq>> body) {
+                public SupResult<List<TagInfoResp>> batchAdd(@Valid @RequestBody SupRequestBody<List<TagInfoCreateReq>> body) {
                     log.error("/api/tag-info/add接口访问出错");
                     return SupResult.error("/api/tag-info/add接口调用异常!");
                 }

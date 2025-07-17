@@ -1,6 +1,7 @@
 package com.supcon.tptrecommend.integration.excel;
 
 
+import cn.hutool.extra.spring.SpringUtil;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.alibaba.excel.read.metadata.holder.ReadRowHolder;
@@ -9,7 +10,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.filedata.DynamicMapper;
+import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
+import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,15 +31,46 @@ import java.util.Map;
 @Getter
 public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String>> {
 
-    private final Map<String, String> excelHeaderToEntityFieldMap; // LLM返回的映射关系
+    /**
+     * LLM返回的文件表头映射关系
+     * key：Excel表头 value：实体属性名
+     */
+    private final Map<String, String> excelHeaderToEntityFieldMap;
+    /**
+     * 业务数据处理器
+     */
     private final BusinessDataHandler handler;
-    private final ObjectMapper objectMapper; // Jackson的核心转换器
+    /**
+     * Jackson的核心转换器
+     */
+    private final ObjectMapper objectMapper;
+    /**
+     * 文件表头
+     */
     private List<String> originalHeaders;
-    private final List<Object> entityList = new ArrayList<>(); // 存放转换好的实体对象
+    /**
+     * 存放转换好的实体对象
+     */
+    private final List<Object> entityList = new ArrayList<>();
+    /**
+     * 文件总行数
+     */
     private final int totalCount;
+    /**
+     * 上次处理进度
+     */
     private int lastReportedProgress = -1;
+    /**
+     * 开始进度
+     */
     private final int startProgress = 40;
+    /**
+     * 文件 ID
+     */
     private final Long fileId;
+    /**
+     * 自定义数据动态映射器
+     */
     private final DynamicMapper<Object, Object> dynamicMapper;
 
     public ExcelDataListener(Map<String, String> mapping, BusinessDataHandler handler, Long fileId, int totalCount, DynamicMapper<Object, Object> mapper) {
@@ -77,11 +111,11 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
             return;
         }
         try {
-            // 2. 使用ObjectMapper将Map转换为对应的实体对象！
-            // handler.getEntityClass() 动态地告诉ObjectMapper要转换成哪个类的实例
+            // 使用自定义映射器进行数据转换
             if (dynamicMapper != null) {
                 entityList.add(dynamicMapper.map(entityPropertyMap));
             } else {
+                //使用ObjectMapper将Map转换为对应的实体对象！handler.getEntityClass() 动态地告诉ObjectMapper要转换成哪个类的实例
                 Object entity = objectMapper.convertValue(entityPropertyMap, handler.getEntityClass());
                 entityList.add(entity);
             }
@@ -124,6 +158,10 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         if (!entityList.isEmpty()) {
             saveData();
         }
+        entityList.clear();
+        // 更新文件解析状态为成功
+        IFileObjectService fileObjectService = SpringUtil.getBean(IFileObjectService.class);
+        fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 

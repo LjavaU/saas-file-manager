@@ -39,11 +39,9 @@ public class TagConfigurationDataHandle implements BusinessDataHandler {
     @Override
     public void batchSave(List<Object> dataList) {
         List<TagInfoCreateReq> tagInfoCreateReqs = castTargetObject(dataList, TagInfoCreateReq.class);
-        SupResult<List<TagInfoResp>> listSupResult = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
-        if (listSupResult.getSuccess()) {
-            log.info("位号组态数据保存成功");
-        } else {
-            log.error("位号组态数据保存失败：{}",listSupResult.getMsg());
+        SupResult<List<TagInfoResp>> result = dataHubFeign.batchAdd(SupRequestBody.data(tagInfoCreateReqs));
+        if (!result.getSuccess()) {
+            log.error("位号组态数据保存失败：{}",result.getMsg());
         }
 
     }

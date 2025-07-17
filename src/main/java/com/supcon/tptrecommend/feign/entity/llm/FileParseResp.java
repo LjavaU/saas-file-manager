@@ -9,7 +9,7 @@ import lombok.Data;
 @ApiModel(description = "文件解析返回内容")
 public class FileParseResp {
     @ApiModelProperty(value = "所属分类")
-    private String category;
+    private Integer category;
 
     @ApiModelProperty(value = "内容概述")
     private String summary;

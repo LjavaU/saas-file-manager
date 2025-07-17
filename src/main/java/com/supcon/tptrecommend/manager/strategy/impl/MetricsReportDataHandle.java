@@ -4,7 +4,10 @@ import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
+import com.supcon.tptrecommend.service.IFileObjectService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -28,7 +31,12 @@ import java.util.List;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class MetricsReportDataHandle implements BusinessDataHandler {
+
+    private final IFileObjectService fileObjectService;
+
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${service.index.address:localhost}")
@@ -75,6 +83,9 @@ public class MetricsReportDataHandle implements BusinessDataHandler {
             ResponseEntity<SupResult> response = restTemplate.postForEntity(indexUrl, requestEntity, SupResult.class);
             if (response.getBody() == null || !response.getStatusCode().is2xxSuccessful() || !response.getBody().getSuccess()) {
                 log.error("请求指标系统处理解析报表数据失败");
+                fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSE_FAILED);
+            } else {
+                fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
             }
 
         } catch (Exception e) {
