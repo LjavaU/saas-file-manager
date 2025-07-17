@@ -1,56 +1,51 @@
 package com.supcon.tptrecommend.common.utils;
 
 import cn.hutool.core.util.StrUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
-import java.util.Arrays;
-import java.util.List;
 
+@Slf4j
 public class DateParserUtil {
 
-    // 更新后的格式列表，加入了对新格式的支持
-    private static final List<DateTimeFormatter> FORMATTERS = Arrays.asList(
-        // 常见格式
-        DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-        DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"),
-        /*主要格式Begin*/
-        DateTimeFormatter.ofPattern("yyyy/M/d H:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/M/d HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/MM/d H:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/MM/d HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/M/dd H:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/M/dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy/MM/dd H:mm:ss"),
-        /*主要格式 END*/
-
-        // 带 'T' 的标准格式
-        DateTimeFormatter.ISO_LOCAL_DATE_TIME
-    );
+    // 使用 DateTimeFormatterBuilder 构建一个能处理多种格式的、高效的解析器
+    private static final DateTimeFormatter FLEXIBLE_FORMATTER = new DateTimeFormatterBuilder()
+        // 将常见格式作为可选格式添加
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/M/d H:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/M/d HH:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/d H:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/d HH:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/M/dd H:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/M/dd HH:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy/MM/dd H:mm:ss"))
+        .appendOptional(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"))
+        // 添加对ISO标准格式（带'T'）的支持
+        .appendOptional(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        .toFormatter(); // 构建最终的 Formatter
 
     /**
-     * 将任意已知格式的字符串转换为 LocalDateTime
+     * 使用单一、高效的解析器将字符串转换为 LocalDateTime
      *
      * @param dateString 日期时间字符串
-     * @return 转换后的 LocalDateTime，如果所有格式都不匹配则返回 Optional.empty()
+     * @return 转换后的 LocalDateTime，如果格式不匹配则返回 null
      */
     public static LocalDateTime parse(String dateString) {
         if (StrUtil.isBlank(dateString)) {
             return null;
         }
-
-        for (DateTimeFormatter formatter : FORMATTERS) {
-            try {
-                return LocalDateTime.parse(dateString, formatter);
-            } catch (DateTimeParseException e) {
-                // 如果失败，尝试下一种格式
-            }
+        try {
+            // 直接使用这个万能解析器进行解析
+            return LocalDateTime.parse(dateString, FLEXIBLE_FORMATTER);
+        } catch (DateTimeParseException e) {
+            log.error("无法解析日期字符串: {}", dateString);
+            return null;
         }
-        // 如果所有格式都尝试失败，则返回空
-        return null;
     }
 
 }
