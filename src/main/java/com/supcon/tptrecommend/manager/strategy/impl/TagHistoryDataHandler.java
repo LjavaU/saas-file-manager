@@ -106,7 +106,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
                 }
                 entities.add(tagValueDTO);
             }
-            if (entities.size() >= Constants.READ_BATCH_SIZE) {
+            if (entities.size() >= Constants.TAG_HISTORY_VALUE_INSERT_SIZE) {
                 batchSave(entities);
                 entities.clear();
             }
@@ -135,7 +135,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
             ReadRowHolder rowHolder = context.readRowHolder();
             int currentRowNum = rowHolder.getRowIndex();// 行号从0开始
             // 计算并报告进度
-            if (currentRowNum % Thresholds == 0 && totalCount > 0) {
+            if (Thresholds != 0 && currentRowNum % Thresholds == 0 && totalCount > 0) {
                 int startProgress = 20;
                 int progress = ProcessProgressSupport.calculateFromStartProgress(currentRowNum, totalCount, startProgress);
                 if (progress > lastReportedProgress) {

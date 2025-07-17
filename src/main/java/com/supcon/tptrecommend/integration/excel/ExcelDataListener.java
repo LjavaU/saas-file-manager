@@ -124,7 +124,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
             log.error("数据转换失败:{}", e.getMessage());
         }
         // 3. 达到批处理阈值，执行插入
-        if (entityList.size() >= Constants.READ_BATCH_SIZE) {
+        if (entityList.size() >= Constants.INSERT_SIZE) {
             saveData();
             entityList.clear();
             calculateProgress(context);
