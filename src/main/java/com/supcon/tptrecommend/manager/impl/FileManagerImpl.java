@@ -64,9 +64,14 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileObjectService fileObjectService;
 
-    private final Executor EXECUTOR = new ThreadPoolExecutor(10, 20,
-        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(100),
-        new ThreadPoolExecutor.CallerRunsPolicy());
+    /**
+     * 用于处理IO密集型任务
+     * 核心线程为：CPU核心是*3
+     * 为了保证服务的可用性，如果队列已满，则丢弃解析任务
+     */
+    private final Executor EXECUTOR = new ThreadPoolExecutor(6, 12,
+        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(10),
+        new ThreadPoolExecutor.AbortPolicy());
 
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
@@ -292,34 +297,35 @@ public class FileManagerImpl implements FileManager {
      *
      * @param req      请求体，包含文件路径等信息
      * @param response 响应对象，用于输出文件流
-     * @throws IOException 当文件读取或网络传输发生错误时抛出此异常
      * @author luhao
      * @date 2025/05/29 17:24:04
      */
     @Override
-    public void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException {
-        // 获取文件路径
+    public void getOne(SingleFileQueryReq req, HttpServletResponse response) {
         String path = req.getPath();
-        // 从MinIO中获取文件字节流
-        InputStream inputStream = minioUtils.getFileBytes(bucket, path);
-        // 获取文件元数据
-        StatObjectResponse metadata = minioUtils.getMetadata(bucket, path);
-        // 设置响应内容类型为文件的Content-Type
-        response.setContentType(metadata.contentType());
-        // 提取并编码文件名，用于响应头
-        String originFileName = path.substring(path.indexOf("_") + 1);
-        // 对中文文件名进行URL编码
-        String encodedFileName = URLEncoder.encode(originFileName, StandardCharsets.UTF_8.name()).replaceAll("\\+", "%20");
-        // 设置响应头，指定文件以行内形式打开，并设置文件名
-        response.setHeader("Content-disposition", "inline;filename*=UTF-8''" + encodedFileName);
-        // 设置响应内容长度
-        response.setContentLengthLong(metadata.size());
-        // 把文件流复制到响应输出流
-        IOUtils.copy(inputStream, response.getOutputStream());
-        // 刷新响应缓冲区，确保文件流发送
-        response.flushBuffer();
-        // 关闭输入流，释放资源
-        inputStream.close();
+
+        try {
+            // 获取文件元数据
+            StatObjectResponse metadata = minioUtils.getMetadata(bucket, path);
+
+            // 设置响应头
+            response.setContentType(metadata.contentType());
+            response.setContentLengthLong(metadata.size());
+
+            String originFileName = path.substring(path.indexOf("_") + 1);
+            String encodedFileName = URLEncoder.encode(originFileName, StandardCharsets.UTF_8.name()).replaceAll("\\+", "%20");
+            response.setHeader("Content-disposition", "attachment;filename*=UTF-8''" + encodedFileName);
+
+            //  获取来自MinIO的实时文件流，并直接写入响应
+            try (InputStream inputStream = minioUtils.getFileBytes(bucket, path)) {
+                IOUtils.copy(inputStream, response.getOutputStream());
+            }
+            response.flushBuffer();
+
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("文件下载异常", e);
+        }
     }
 
 
@@ -354,7 +360,7 @@ public class FileManagerImpl implements FileManager {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
         // 去除文件夹名的空格和换行符
         String folderName = data.getFolderName().trim().replaceAll("[\\n\\r]", "");
-        if(StrUtil.isBlank(folderName)){
+        if (StrUtil.isBlank(folderName)) {
             throw new ClientException("文件夹名称不能为空");
         }
         if (folderName.contains("_") || folderName.contains("/")) {

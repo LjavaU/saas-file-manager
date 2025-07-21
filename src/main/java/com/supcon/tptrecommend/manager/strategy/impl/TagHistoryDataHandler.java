@@ -90,7 +90,11 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
         @Override
         public void invoke(Map<Integer, String> data, AnalysisContext context) {
             String time = data.get(0);
+            if(NumberUtil.isNumber( time)){
+                return;
+            }
             data.remove(0);
+            LocalDateTime dateTime = DateParserUtil.parse(time);
             for (Map.Entry<Integer, String> entry : data.entrySet()) {
                 if (!NumberUtil.isNumber(entry.getValue())) {
                     continue;
@@ -100,7 +104,6 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
                 tagValueDTO.setTagName(headers.get(entry.getKey()));
                 tagValueDTO.setTagValue(entry.getValue());
                 if (StrUtil.isNotBlank(time)) {
-                    LocalDateTime dateTime = DateParserUtil.parse(time);
                     tagValueDTO.setTagTime(dateTime);
                     tagValueDTO.setAppTime(dateTime);
                 }

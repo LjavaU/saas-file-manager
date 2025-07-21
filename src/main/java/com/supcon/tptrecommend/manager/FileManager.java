@@ -8,7 +8,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -51,11 +50,10 @@ public interface FileManager {
      *
      * @param req      请求体
      * @param response 响应
-     * @throws IOException io异常
      * @author luhao
      * @date 2025/05/29 16:49:37
      */
-    void getOne(SingleFileQueryReq req, HttpServletResponse response) throws IOException;
+    void getOne(SingleFileQueryReq req, HttpServletResponse response);
 
 
 
