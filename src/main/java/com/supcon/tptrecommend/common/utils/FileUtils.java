@@ -69,15 +69,24 @@ public class FileUtils {
      * @since 2025/06/19 09:34:52
      */
     public static Charset detectCharset(File file) {
+        // 定义一个合理的样本大小，例如 64KB。对于大多数文件来说绰绰有余。
+        final int SAMPLE_SIZE = 64 * 1024;
         // 1. 创建一个缓冲区
         byte[] buf = new byte[4096];
         UniversalDetector detector = new UniversalDetector(null);
 
+        // 用于计数已读取的总字节数
+        int totalBytesRead = 0;
         // 2. 循环读取文件流，分块送入检测器
         try (FileInputStream fis = new FileInputStream(file)) {
             int nread;
             while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
                 detector.handleData(buf, 0, nread);
+                totalBytesRead += nread;
+                // 如果读取的字节数已经超过我们设定的样本大小，就没必要继续了
+                if (totalBytesRead >= SAMPLE_SIZE) {
+                    break;
+                }
             }
         } catch (IOException e) {
             log.error("文件编码检测异常", e);
