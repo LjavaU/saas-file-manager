@@ -41,7 +41,6 @@ public class FileController extends BasicController {
      * @author luhao
      * @date 2025/05/22 13:52:19
      */
-    @CrossOrigin
     @PostMapping(value = "/upload")
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")

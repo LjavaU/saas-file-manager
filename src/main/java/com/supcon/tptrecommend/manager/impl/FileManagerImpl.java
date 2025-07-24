@@ -483,7 +483,7 @@ public class FileManagerImpl implements FileManager {
     @Override
     public FileTreeNode listFilesAsTree() {
         // 2. 创建根节点
-        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "");
+        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "",null);
 
         // 3. 递归列出所有对象
         String path = getPath(LoginUserUtils.getLoginUserInfo());
@@ -503,10 +503,10 @@ public class FileManagerImpl implements FileManager {
                 Long id = fileObject.getId();
                 if (isFile) {
                     // 文件节点
-                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName);
+                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize());
                 } else {
                     // 文件夹节点
-                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1));
+                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null);
                 }
             }
 

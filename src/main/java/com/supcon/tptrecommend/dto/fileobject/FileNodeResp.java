@@ -23,7 +23,7 @@ public class FileNodeResp {
     @ApiModelProperty(value = "文件类型, \"folder\" or \"file\"")
     private String type;
 
-    @ApiModelProperty(value = "文件大小(KB)")
+    @ApiModelProperty(value = "文件大小")
     private String size;
 
     @ApiModelProperty(value = "上传时间")
