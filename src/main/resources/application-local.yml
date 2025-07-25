@@ -19,6 +19,7 @@ sup:
     dt: 0
     enabled: true
     db.enabled: true
+    http.enabled: true
   websocket:
       # websocket 端点路径,多个中间','隔开
     path: /supWs
@@ -27,7 +28,9 @@ minio:
   accessKey: admin
   secretKey: Supcon1304
   bucket: recommend  #桶
-
+feign:
+  okhttp:
+    enabled: true
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
@@ -45,6 +48,6 @@ service:
   pid:
     address: http://obp-dev.supcon5t.com/xpt-tpt-pid/
   index:
-    address: http://tpt-index-gpt-dev.supcon5t.com/indicator/report/excel/upload
+    address: http://tpt-index-gpt-dev.supcon5t.com
 file:
   upload-dir: D:/temp/uploads
