@@ -70,35 +70,34 @@ public interface LlmFeign {
 
         @Override
         public LlmFeign create(Throwable cause) {
-            log.error("模型调用出错", cause);
             return new LlmFeign() {
                 @Override
                 public FileParseResp parse(FileParseReq req) {
-                    log.error("/api/file/parsing接口访问出错");
+                    log.error("/api/file/parsing接口访问出错",cause);
                     return null;
                 }
 
                 @Override
                 public ResponseEntity<Resource> convert(MultipartFile multipartFile) {
-                    log.error("/api/file/convert接口访问出错");
+                    log.error("/api/file/convert接口访问出错",cause);
                     return null;
                 }
 
                 @Override
                 public FileClassifyResp classify(FileClassifyReq fileClassifyReq) {
-                    log.error("/api/file/class接口访问出错");
+                    log.error("/api/file/class接口访问出错",cause);
                     return null;
                 }
 
                 @Override
                 public FileExtractResp extract(FileExtractReq fileExtractReq) {
-                    log.error("/api/file/extract接口访问出错");
+                    log.error("/api/file/extract接口访问出错",cause);
                     return null;
                 }
 
                 @Override
                 public FileAlignmentResp alignment(FileAlignmentReq fileAlignmentReq) {
-                    log.error("/api/file/alignment接口访问出错");
+                    log.error("/api/file/alignment接口访问出错",cause);
                     return null;
                 }
             };

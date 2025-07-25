@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.manager.impl;
 
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -119,10 +120,10 @@ public class FileManagerImpl implements FileManager {
 
     private void processFileAnalysis(String filePath, String originalFilename, Long fileId) {
         if (Objects.nonNull(filePath)) {
-            CompletableFuture.runAsync(() -> {
+            CompletableFuture.runAsync(TtlRunnable.get(() -> {
                 fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename))
                     .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
-            }, EXECUTOR).exceptionally(throwable -> {
+            }), EXECUTOR).exceptionally(throwable -> {
                 // 删除临时文件
                 if (throwable.getCause() instanceof UnsupportedFileTypeException) {
                     try {

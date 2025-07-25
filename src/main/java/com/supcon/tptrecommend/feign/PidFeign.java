@@ -28,11 +28,10 @@ public interface PidFeign {
     class PidFeignFallBack implements FallbackFactory<PidFeign> {
         @Override
         public PidFeign create(Throwable cause) {
-            log.error("PID服务调用出错", cause);
             return new PidFeign() {
                 @Override
                 public SupResult<Object> addLoop(DcsLoopMetadata dcsLoopMetadata) {
-                    log.error("inter-api/pid-configuration/v1/loop/add接口访问出错");
+                    log.error("调用 PidFeign#addLoop 失败", cause);
                     return SupResult.error("inter-api/pid-configuration/v1/loop/add接口调用异常!");
                 }
             };

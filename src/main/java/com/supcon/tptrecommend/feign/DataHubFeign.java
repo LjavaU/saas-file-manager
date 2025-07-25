@@ -52,17 +52,16 @@ public interface DataHubFeign {
 
         @Override
         public DataHubFeign create(Throwable cause) {
-            log.error("数据中心服务调用出错", cause);
             return new DataHubFeign() {
                 @Override
                 public SupResult<List<TagInfoResp>> batchAdd(@Valid @RequestBody SupRequestBody<List<TagInfoCreateReq>> body) {
-                    log.error("/api/tag-info/add接口访问出错");
+                    log.error("调用 DataHubFeign#batchAdd 失败", cause);
                     return SupResult.error("/api/tag-info/add接口调用异常!");
                 }
 
                 @Override
                 public SupResult<Boolean> importTagValue(SupRequestBody<List<TagValueDTO>> body) {
-                    log.error("//api/tag-value/importTagValue接口访问出错");
+                    log.error("调用 DataHubFeign#importTagValue 失败", cause);
                     return SupResult.error("/api/tag-value/importTagValue接口调用异常!");
                 }
             };
