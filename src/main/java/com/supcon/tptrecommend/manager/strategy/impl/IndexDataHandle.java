@@ -27,10 +27,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -55,10 +52,10 @@ public class IndexDataHandle implements BusinessDataHandler {
 
     /**
      * 存储指标解析返回的文件id
-     * key: 文件id
+     * key: 租户id-文件id
      * value: 报表文件id
      */
-    private static final Map<Long, String> REPORT_FILE_ID = new ConcurrentHashMap<>();
+    private static final Map<String, String> REPORT_FILE_ID = new ConcurrentHashMap<>();
 
 
     @Override
@@ -108,15 +105,17 @@ public class IndexDataHandle implements BusinessDataHandler {
                 .map(FileUploadResult::getItems)
                 .orElse(Collections.emptyList())
                 .stream()
-                .filter(uploadResultItem -> {
-                    return uploadResultItem.getUploadStatus() || uploadResultItem.getUploadMessage().contains("重复上传");
-                }) // 查找上传成功的条目
+                .filter(uploadResultItem -> uploadResultItem.getUploadStatus() ||
+                    uploadResultItem.getUploadMessage().contains("重复上传")) // 查找上传成功的条目
                 .map(UploadResultItem::getFileId)         // 获取该条目的fileId
                 .findFirst();
             // 4. 根据是否找到ID来处理成功或失败的情况
             if (reportFileIdOpt.isPresent()) {
                 ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(25, 30));
-                REPORT_FILE_ID.put(fileId, reportFileIdOpt.get());
+                String tenantId = TenantContext.getCurrentTenant();
+                REPORT_FILE_ID.put(tenantId + "-" + fileId, reportFileIdOpt.get());
+            } else {
+                handleProcessingFailure(fileId);
             }
         } catch (Exception e) {
             log.error("请求指标系统处理解析报表数据失败", e);
@@ -143,9 +142,13 @@ public class IndexDataHandle implements BusinessDataHandler {
         if (REPORT_FILE_ID.isEmpty()) {
             return;
         }
-        REPORT_FILE_ID.forEach((fileId, reportFileId) -> {
-           R<String> reportParsingStatus = indexFeign.getReportParsingStatus(reportFileId, String.valueOf(Optional.ofNullable(fileObjectService.getById(fileId)).map(FileObject::getUserId).orElse(1L)));
-            if (reportParsingStatus.isSuccess()) {
+        REPORT_FILE_ID.forEach((tenantFileId, reportFileId) -> {
+            String[] split = tenantFileId.split("-");
+            String tenantId = split[0];
+            Long fileId = Long.parseLong(split[1]);
+            TenantContext.setCurrentTenant(tenantId);
+            R<String> reportParsingStatus = indexFeign.getReportParsingStatus(reportFileId, String.valueOf(Optional.ofNullable(fileObjectService.getById(fileId)).map(FileObject::getUserId).orElse(1L)));
+            if (Objects.nonNull(reportParsingStatus) && reportParsingStatus.isSuccess()) {
                 String status = reportParsingStatus.getData();
                 ReportParseStatus parseStatus = ReportParseStatus.getByValue(status);
                 if (parseStatus != null) {
@@ -160,16 +163,16 @@ public class IndexDataHandle implements BusinessDataHandler {
                         case PARTIAL_COMPLETION:
                             fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
                             ProcessProgressSupport.notifyParseComplete(fileId);
-                            REPORT_FILE_ID.remove(fileId);
+                            REPORT_FILE_ID.remove(tenantFileId);
                             break;
                         case ERROR:
                             fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSE_FAILED);
                             ProcessProgressSupport.notifyParseComplete(fileId);
-                            REPORT_FILE_ID.remove(fileId);
+                            REPORT_FILE_ID.remove(tenantFileId);
                     }
                 }
             } else {
-                log.error("查询指标系统报表解析状态失败：{}", reportParsingStatus.getMsg());
+                log.error("查询指标系统报表解析状态失败：{}", Objects.nonNull(reportParsingStatus) ? reportParsingStatus.getMsg() : "请求失败");
             }
         });
     }
@@ -181,11 +184,7 @@ public class IndexDataHandle implements BusinessDataHandler {
      * @since 2025/07/24 14:40:50
      */
     enum ReportParseStatus {
-        WAITING,
-        PARSING,
-        COMPLETED,
-        ERROR,
-        PARTIAL_COMPLETION;
+        WAITING, PARSING, COMPLETED, ERROR, PARTIAL_COMPLETION;
 
         public static ReportParseStatus getByValue(String value) {
             for (ReportParseStatus status : values()) {
