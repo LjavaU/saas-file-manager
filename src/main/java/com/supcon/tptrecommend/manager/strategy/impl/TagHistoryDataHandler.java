@@ -9,10 +9,10 @@ import com.alibaba.excel.read.metadata.holder.ReadRowHolder;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.Constants;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.DateParserUtil;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
-import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.DataHubFeign;
 import com.supcon.tptrecommend.feign.entity.datahub.TagValueDTO;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
@@ -123,7 +123,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
             }
             entities.clear();
             // 更新文件解析状态为成功
-            fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+            fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
             ProcessProgressSupport.notifyParseComplete(fileId);
         }
 

@@ -52,7 +52,7 @@ public class FileController extends BasicController {
     @DeleteMapping(value = "delete/{id}")
     @ApiOperation("删除文件")
     @ApiOperationSupport(order = 2, author = "luhao")
-    @SysServiceLog(moduleName = "文件管理-删除文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    @SysServiceLog(moduleName = "文件管理-删除文件", operateType = OperateTypeEnum.LOG_TYPE_DEL, onlyExceptions = true)
     public SupResult<Boolean> delete(@PathVariable Long id) {
         Boolean res = fileManager.delete(id);
         return data(res);
@@ -61,7 +61,7 @@ public class FileController extends BasicController {
     @DeleteMapping("batchDelete")
     @ApiOperation("批量删除文件")
     @ApiOperationSupport(order = 3, author = "luhao")
-    @SysServiceLog(moduleName = "文件管理-批量删除文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    @SysServiceLog(moduleName = "文件管理-批量删除文件", operateType = OperateTypeEnum.LOG_TYPE_DEL, onlyExceptions = true)
     public SupResult<Boolean> batchDelete(@Valid @RequestBody SupRequestBody<IDList<Long>> body) {
         Boolean res = fileManager.batchDelete(body.getData());
         return data(res);
@@ -80,7 +80,7 @@ public class FileController extends BasicController {
     @ApiOperation("获取单个文件流")
     @ApiOperationSupport(order = 5, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public void getOne(@Valid @RequestBody SupRequestBody<SingleFileQueryReq> req, HttpServletResponse response)  {
+    public void getOne(@Valid @RequestBody SupRequestBody<SingleFileQueryReq> req, HttpServletResponse response) {
         fileManager.getOne(req.getData(), response);
     }
 
@@ -118,5 +118,11 @@ public class FileController extends BasicController {
         return data(fileManager.listFilesAsTree());
     }
 
-
+    @PostMapping("update")
+    @ApiOperation("更新文件属性")
+    @ApiOperationSupport(order = 10, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-更新文件属性", operateType = OperateTypeEnum.LOG_TYPE_UPDATE, onlyExceptions = true)
+    public SupResult<Boolean> update(@RequestBody FileAttributesUpdatedReq req) {
+        return data(fileManager.update(req));
+    }
 }

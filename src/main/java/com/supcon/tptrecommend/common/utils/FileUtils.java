@@ -59,7 +59,6 @@ public class FileUtils {
     }
 
 
-
     /**
      * 检测文件中的字符集
      *
@@ -113,8 +112,17 @@ public class FileUtils {
     }
 
 
-
-
-
+    /**
+     * 判断是否是知识库文件的类型
+     *
+     * @param originalFilename 原始文件名
+     * @return boolean
+     * @author luhao
+     * @since 2025/07/30 14:12:27
+     */
+    public static boolean isKnowledgeDocumentFile(String originalFilename) {
+        return originalFilename.endsWith(".txt") || originalFilename.endsWith(".doc") ||
+            originalFilename.endsWith(".docx") || originalFilename.endsWith(".pdf");
+    }
 }
 

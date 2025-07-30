@@ -8,9 +8,9 @@ import com.alibaba.excel.read.metadata.holder.ReadRowHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.supcon.tptrecommend.common.Constants;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.filedata.DynamicMapper;
-import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.strategy.BusinessDataHandler;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.Getter;
@@ -161,7 +161,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         entityList.clear();
         // 更新文件解析状态为成功
         IFileObjectService fileObjectService = SpringUtil.getBean(IFileObjectService.class);
-        fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+        fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 

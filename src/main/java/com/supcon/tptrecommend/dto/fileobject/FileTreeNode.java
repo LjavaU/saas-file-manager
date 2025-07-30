@@ -27,14 +27,18 @@ public class FileTreeNode {
     @ApiModelProperty(value = "文件路径")
     private String path;
 
+    @ApiModelProperty(value = "知识库解析状态【0-正在上传/解析中，1-embedding失败，2-向量库插入失败，3-成功】")
+    private Integer knowledgeParseState;
+
     private List<FileTreeNode> children = new ArrayList<>(); // 子节点列表
 
-    public FileTreeNode(Long id, String name, String type,String path,Long size) {
+    public FileTreeNode(Long id, String name, String type, String path, Long size, Integer knowledgeParseState) {
         this.id = id;
         this.name = name;
         this.type = type;
         this.path = path;
         this.size = size;
+        this.knowledgeParseState = knowledgeParseState;
     }
 
     /**
@@ -49,13 +53,13 @@ public class FileTreeNode {
      * @author luhao
      * @since 2025/07/04 11:12:16
      */
-    public FileTreeNode findOrCreateChild(String childName, Long id, String type,String path,Long size) {
+    public FileTreeNode findOrCreateChild(String childName, Long id, String type, String path, Long size, Integer knowledgeParseState) {
         for (FileTreeNode child : this.children) {
             if (child.getName().equals(childName)) {
                 return child;
             }
         }
-        FileTreeNode newChild = new FileTreeNode(id, childName.substring(childName.indexOf("_") + 1), type,path,size);
+        FileTreeNode newChild = new FileTreeNode(id, childName.substring(childName.indexOf("_") + 1), type, path, size, knowledgeParseState);
         this.children.add(newChild);
         this.children.sort(Comparator.comparing(FileTreeNode::getType).reversed());
         return newChild;

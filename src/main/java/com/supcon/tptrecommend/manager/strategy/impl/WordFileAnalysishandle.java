@@ -8,6 +8,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
+import com.supcon.tptrecommend.common.enums.FileCategory;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.dto.FileParse.FileParseProgressResp;
 import com.supcon.tptrecommend.entity.FileObject;
@@ -137,11 +139,11 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
             lastReportedProgress = Progress;
         }
         if (resultArray.isEmpty()) {
-            updateFileStatus(fileId, FileObject.FileStatus.PARSE_FAILED.getValue());
+            updateFileStatus(fileId, FileStatus.PARSE_FAILED.getValue());
             ProcessProgressSupport.notifyParseComplete(fileId);
             return;
         } else {
-            updateFileParseSuccess(fileId, FileObject.Category.getValueByCode(category), summary);
+            updateFileParseSuccess(fileId, FileCategory.getValueByCode(category), summary);
             ProcessProgressSupport.notifyParseComplete(fileId);
         }
         Set<TmpLabelDeviceCreateReq> devices = Sets.newHashSet();
@@ -170,7 +172,7 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
         fileObject.setId(fileId);
         fileObject.setCategory(category);
         fileObject.setContentOverview(summary);
-        fileObject.setFileStatus(FileObject.FileStatus.PARSED.getValue());
+        fileObject.setFileStatus(FileStatus.PARSED.getValue());
         fileObjectService.updateById(fileObject);
     }
 
