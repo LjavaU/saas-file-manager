@@ -1,8 +1,12 @@
 package com.supcon.tptrecommend.service;
 
 import com.supcon.system.base.entity.basic.IBasicService;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
+import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.entity.FileObject;
+
+import java.util.List;
 
 /**
  * <p>
@@ -35,6 +39,23 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      * @author luhao
      * @since 2025/06/30 14:54:24
      */
-    boolean updateFileParseStatus(Long fileId, FileObject.FileStatus fileStatus);
+    boolean updateFileParseStatus(Long fileId, FileStatus fileStatus);
 
+    /**
+     * 获取正在解析的知识库文件
+     *
+     * @return {@link List }<{@link FileObjectResp }>
+     * @author luhao
+     * @since 2025/07/30 11:27:12
+     */
+    List<FileObjectResp> getKnowledgeParsing();
+
+    /**
+     * 更新知识库解析状态
+     *
+     * @param fileObject 文件对象
+     * @author luhao
+     * @since 2025/07/30 13:27:32
+     */
+    void updateKnowledgeParseState(FileObject fileObject);
 }

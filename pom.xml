@@ -55,12 +55,11 @@
             <groupId>com.supcon</groupId>
             <artifactId>sup-spring-boot-starter-tenant</artifactId>
         </dependency>
-        <!--excel-->
+
         <dependency>
             <groupId>com.supcon</groupId>
-            <artifactId>system-component-excel</artifactId>
+            <artifactId>sup-spring-boot-starter-schedule</artifactId>
         </dependency>
-
         <!-- EasyExcel for .xls and .xlsx parsing -->
         <dependency>
             <groupId>com.alibaba</groupId>

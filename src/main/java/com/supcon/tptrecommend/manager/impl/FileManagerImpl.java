@@ -1,11 +1,15 @@
 package com.supcon.tptrecommend.manager.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpStatus;
 import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.supcon.framework.schedule.core.api.IJobApi;
+import com.supcon.framework.schedule.core.entity.JobInfo;
 import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.systemcommon.entity.IDList;
@@ -14,6 +18,8 @@ import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.enums.FileKind;
+import com.supcon.tptrecommend.common.enums.FileStatus;
+import com.supcon.tptrecommend.common.enums.KnowledgeParseState;
 import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.LoginUserUtils;
@@ -22,6 +28,10 @@ import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
+import com.supcon.tptrecommend.feign.KnowledgeFeign;
+import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
+import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
+import com.supcon.tptrecommend.job.KnowledgeParseStatusJob;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
@@ -64,6 +74,10 @@ public class FileManagerImpl implements FileManager {
     private final MinioUtils minioUtils;
 
     private final IFileObjectService fileObjectService;
+
+    private final IJobApi jobApi;
+
+    private final KnowledgeFeign knowledgeFeign;
 
     /**
      * 用于处理IO密集型任务
@@ -109,6 +123,8 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
+        // 上传到知识库
+        uploadToKnowledgeBase(originalFilename, file, objectKey, fileId);
         // 把上传的文件临时保存
         String filePath = saveFileTemporary(file, uniqueFilename);
         if (StrUtil.isBlank(attributes)) {
@@ -141,10 +157,45 @@ public class FileManagerImpl implements FileManager {
         }
     }
 
+    /**
+     * 上传到知识库
+     *
+     * @param originalFilename 原始文件名
+     * @param file             文件
+     * @param objectKey        对象键
+     * @param fileId           文件 ID
+     * @author luhao
+     * @since 2025/07/30 14:13:50
+     */
+    private void uploadToKnowledgeBase(String originalFilename, MultipartFile file, String objectKey, Long fileId) {
+        if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
+            List<MultipartFile> files = Collections.singletonList(file);
+            KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
+            if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
+                FileDataSimple fileDataSimple = resp.getData().get(0);
+                String status = fileDataSimple.getStatus();
+                FileObject fileObject = new FileObject();
+                fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(status));
+                fileObject.setId(fileId);
+                fileObjectService.updateById(fileObject);
+                List<JobInfo> jobs = jobApi.jobs();
+                if (CollectionUtil.isEmpty(jobs)) {
+                    // 添加一个任务 用于定时轮询知识库文件的解析状态
+                    KnowledgeParseStatusJob knowledgeParseStatusJob = new KnowledgeParseStatusJob();
+                    jobApi.add(knowledgeParseStatusJob);
+                }
+            }
+
+
+        }
+
+    }
+
+
     private void updateFileStatusParseFailed(Long fileId) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
-        fileObject.setFileStatus(FileObject.FileStatus.PARSE_FAILED.getValue());
+        fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
         fileObjectService.updateById(fileObject);
     }
 
@@ -258,6 +309,11 @@ public class FileManagerImpl implements FileManager {
         }
         deleteFileObjectHierarchy(fileObject.getObjectName(), id);
         minioUtils.removeFile(fileObject.getBucketName(), fileObject.getObjectName());
+        // 删除文件的知识库
+        KnowledgeFileUploadResp resp = knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), fileObject.getBucketName(), fileObject.getObjectName(), fileObject.getTenantId());
+        if (Objects.isNull(resp) || resp.getCode() != HttpStatus.HTTP_OK) {
+            log.error("删除文件对应的知识库失败: {}", fileObject.getObjectName());
+        }
         return true;
     }
 
@@ -484,7 +540,7 @@ public class FileManagerImpl implements FileManager {
     @Override
     public FileTreeNode listFilesAsTree() {
         // 2. 创建根节点
-        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "",null);
+        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "", null,null);
 
         // 3. 递归列出所有对象
         String path = getPath(LoginUserUtils.getLoginUserInfo());
@@ -504,14 +560,23 @@ public class FileManagerImpl implements FileManager {
                 Long id = fileObject.getId();
                 if (isFile) {
                     // 文件节点
-                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize());
+                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize(),fileObject.getKnowledgeParseState());
                 } else {
                     // 文件夹节点
-                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null);
+                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null,null);
                 }
             }
 
         }
         return root;
+    }
+
+    @Override
+    public boolean update(FileAttributesUpdatedReq req) {
+        fileObjectService.update(new FileObject(),Wrappers.<FileObject>lambdaUpdate()
+            .set(FileObject::getCategory, req.getCategory())
+            .set(FileObject::getAbility, req.getAbility())
+            .eq(AutoIdEntity::getId, req.getFileId()));
+        return true;
     }
 }

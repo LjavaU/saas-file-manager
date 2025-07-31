@@ -7,6 +7,8 @@ import com.alibaba.excel.read.builder.ExcelReaderBuilder;
 import com.alibaba.excel.support.ExcelTypeEnum;
 import com.google.common.collect.Sets;
 import com.supcon.systemcommon.exception.ServerException;
+import com.supcon.tptrecommend.common.enums.FileCategory;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.MarkdownConverter;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
@@ -59,7 +61,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(5, 10));
         FileObject fileObject = fileObjectService.getById(fileId);
         String originalFilename = fileObject.getOriginalName();
-        if (FileObject.FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
+        if (FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
             try {
                 File file = new File(filePath);
                 doHandle(file, fileId, originalFilename);
@@ -85,7 +87,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     }
 
     private void updateFileParsed(Long fileId) {
-        fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+        fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
     }
 
     @Override
@@ -124,7 +126,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         // 把文件进行分类
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
-        updateFileParseMetadata(fileId, FileObject.Category.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(),fileClassifyResp.getSubcategory());
+        updateFileParseMetadata(fileId, FileCategory.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(),fileClassifyResp.getSubcategory());
         // 通知解析进程【LLM分类成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
         // 根据业务分类找出业务处理器

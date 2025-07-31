@@ -46,9 +46,6 @@ public class FileObjectResp extends BasicEntity<Long> {
     @ApiModelProperty(value = "文件大小")
     private String fileSize;
 
-    @ApiModelProperty(value = "标签", example = "标签")
-    private String tags;
-
     @ApiModelProperty(value = "所属分类")
     private String category;
 

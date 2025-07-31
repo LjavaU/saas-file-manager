@@ -15,6 +15,12 @@ sup:
     addr: http://localhost:8080
     remote:
       enabled: false
+  schedule:
+    username: admin
+    password: 123456
+    addresses:  system-schedule-obp-dev.supcon5t.com/xxl-job-admin
+    executor:
+        address: http://10.30.75.78:9998
   tenant:
     dt: 0
     enabled: true
@@ -49,5 +55,7 @@ service:
     address: http://obp-dev.supcon5t.com/xpt-tpt-pid/
   index:
     address: http://tpt-index-gpt-dev.supcon5t.com
+  knowledge:
+    address: http://10.16.11.25:8440
 file:
   upload-dir: D:/temp/uploads

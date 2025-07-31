@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.manager.strategy.impl;
 
 import cn.hutool.json.JSONUtil;
 import com.supcon.framework.tenant.core.getter.TenantContext;
+import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
@@ -126,7 +127,7 @@ public class IndexDataHandle implements BusinessDataHandler {
     }
 
     private void handleProcessingFailure(Long fileId) {
-        fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSE_FAILED);
+        fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSE_FAILED);
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 
@@ -161,12 +162,12 @@ public class IndexDataHandle implements BusinessDataHandler {
                             break;
                         case COMPLETED:
                         case PARTIAL_COMPLETION:
-                            fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSED);
+                            fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
                             ProcessProgressSupport.notifyParseComplete(fileId);
                             REPORT_FILE_ID.remove(tenantFileId);
                             break;
                         case ERROR:
-                            fileObjectService.updateFileParseStatus(fileId, FileObject.FileStatus.PARSE_FAILED);
+                            fileObjectService.updateFileParseStatus(fileId,FileStatus.PARSE_FAILED);
                             ProcessProgressSupport.notifyParseComplete(fileId);
                             REPORT_FILE_ID.remove(tenantFileId);
                     }

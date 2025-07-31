@@ -101,4 +101,13 @@ public interface FileManager {
     FileTreeNode listFilesAsTree();
 
 
+    /**
+     * 更新文件属性
+     *
+     * @param req 请求体
+     * @return boolean
+     * @author luhao
+     * @since 2025/07/30 15:08:08
+     */
+    boolean update(FileAttributesUpdatedReq req);
 }

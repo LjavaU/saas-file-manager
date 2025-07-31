@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,7 @@ public interface LlmFeign {
     @PostMapping(value = "/api/file/parsing")
     FileParseResp parse(@RequestBody FileParseReq fileParseReq);
 
-    @PostMapping(value = "/api/file/convert", consumes = "multipart/form-data")
+    @PostMapping(value = "/api/file/convert", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ResponseEntity<Resource> convert(@RequestPart(value = "file") MultipartFile file);
 
     /**
@@ -103,4 +104,6 @@ public interface LlmFeign {
             };
         }
     }
+
+
 }
