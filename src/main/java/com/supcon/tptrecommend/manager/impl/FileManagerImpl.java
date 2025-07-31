@@ -54,6 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -184,6 +185,14 @@ public class FileManagerImpl implements FileManager {
                     KnowledgeParseStatusJob knowledgeParseStatusJob = new KnowledgeParseStatusJob();
                     jobApi.add(knowledgeParseStatusJob);
                 }
+            } else {
+                log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
+                FileObject fileObject = new FileObject();
+                fileObject.setId(fileId);
+                fileObject.setKnowledgeParseState(KnowledgeParseState.RED.getValue());
+                fileObject.setUpdateTime(LocalDateTime.now());
+                fileObject.setTenantId(TenantContext.getCurrentTenant());
+                fileObjectService.updateKnowledgeParseState(fileObject);
             }
 
 
@@ -540,7 +549,7 @@ public class FileManagerImpl implements FileManager {
     @Override
     public FileTreeNode listFilesAsTree() {
         // 2. 创建根节点
-        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "", null,null);
+        FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "", null, null);
 
         // 3. 递归列出所有对象
         String path = getPath(LoginUserUtils.getLoginUserInfo());
@@ -560,10 +569,10 @@ public class FileManagerImpl implements FileManager {
                 Long id = fileObject.getId();
                 if (isFile) {
                     // 文件节点
-                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize(),fileObject.getKnowledgeParseState());
+                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize(), fileObject.getKnowledgeParseState());
                 } else {
                     // 文件夹节点
-                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null,null);
+                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null, null);
                 }
             }
 
@@ -573,7 +582,7 @@ public class FileManagerImpl implements FileManager {
 
     @Override
     public boolean update(FileAttributesUpdatedReq req) {
-        fileObjectService.update(new FileObject(),Wrappers.<FileObject>lambdaUpdate()
+        fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
             .set(FileObject::getCategory, req.getCategory())
             .set(FileObject::getAbility, req.getAbility())
             .eq(AutoIdEntity::getId, req.getFileId()));

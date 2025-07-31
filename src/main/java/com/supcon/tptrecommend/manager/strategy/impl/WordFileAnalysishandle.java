@@ -321,7 +321,8 @@ public class WordFileAnalysishandle implements FileAnalysisHandle {
 
     @Override
     public Set<String> getSupportedTypes() {
-        return Sets.newHashSet("doc", "docx");
+      //  return Sets.newHashSet("doc", "docx");
+        return null;
     }
 
 
