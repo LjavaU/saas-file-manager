@@ -54,13 +54,16 @@ public class KnowledgeParseStatusJobHandler extends AbstractJobHandler {
             if (Objects.nonNull(parseDetails) && parseDetails.getCode() == HttpStatus.HTTP_OK) {
                 KnowledgeParseDetails parseDetailsData = parseDetails.getData();
                 if (Objects.nonNull(parseDetailsData)) {
-                    FileDataSimple fileDataSimple = parseDetailsData.getDetails().get(0);
-                    FileObject fileObject = new FileObject();
-                    fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(fileDataSimple.getStatus()));
-                    fileObject.setId(fileObjectResp.getId());
-                    fileObject.setTenantId(fileObjectResp.getTenantId());
-                    fileObject.setUpdateTime(LocalDateTime.now());
-                    fileObjectService.updateKnowledgeParseState(fileObject);
+                    List<FileDataSimple> details = parseDetailsData.getDetails();
+                    if (CollectionUtil.isNotEmpty(details)) {
+                        FileDataSimple fileDataSimple = details.get(0);
+                        FileObject fileObject = new FileObject();
+                        fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(fileDataSimple.getStatus()));
+                        fileObject.setId(fileObjectResp.getId());
+                        fileObject.setTenantId(fileObjectResp.getTenantId());
+                        fileObject.setUpdateTime(LocalDateTime.now());
+                        fileObjectService.updateKnowledgeParseState(fileObject);
+                    }
                 }
 
             } else {
