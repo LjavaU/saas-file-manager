@@ -9,6 +9,7 @@ import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.dto.fileobject.*;
+import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.FileManager;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -85,13 +86,12 @@ public class FileController extends BasicController {
     }
 
 
-    @GetMapping("detail/{fileId}")
+    @PostMapping("detail")
     @ApiOperation("获取文件详情")
     @ApiOperationSupport(order = 6, author = "luhao")
-    @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<FileObjectResp> detail(@PathVariable Long fileId) {
-
-        return data(fileManager.detail(fileId));
+    @SysServiceLog(moduleName = "文件管理-获取文件详情", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<List<FileObject>> detail(@RequestBody @Valid  SupRequestBody<FileDetailReq> req) {
+        return data(fileManager.detail(req.getData()));
     }
 
     @PostMapping("createFolder")
@@ -122,7 +122,7 @@ public class FileController extends BasicController {
     @ApiOperation("更新文件属性")
     @ApiOperationSupport(order = 10, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-更新文件属性", operateType = OperateTypeEnum.LOG_TYPE_UPDATE, onlyExceptions = true)
-    public SupResult<Boolean> update(@RequestBody FileAttributesUpdatedReq req) {
-        return data(fileManager.update(req));
+    public SupResult<Boolean> update(@RequestBody SupRequestBody<FileAttributesUpdatedReq> req) {
+        return data(fileManager.update(req.getData()));
     }
 }
