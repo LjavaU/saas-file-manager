@@ -396,9 +396,10 @@ public class FileManagerImpl implements FileManager {
 
 
     @Override
-    public FileObjectResp detail(Long fileId) {
-        FileObject fileObject = fileObjectService.getById(fileId);
-        return FileObjectConvert.INSTANCE.convert(fileObject);
+    public List<FileObject> detail(FileDetailReq req) {
+        return fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
+            .in(FileObject::getObjectName, req.getPaths())
+            .isNotNull(FileObject::getKnowledgeParseState));
 
     }
 
@@ -582,10 +583,16 @@ public class FileManagerImpl implements FileManager {
 
     @Override
     public boolean update(FileAttributesUpdatedReq req) {
+        Long fileId = req.getFileId();
+        String objectName = req.getObjectName();
+        if (Objects.isNull(fileId) && StrUtil.isBlank(objectName)) {
+            throw new ClientException("必须提供文件ID或文件全路径参数中的任意一个");
+        }
         fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
             .set(FileObject::getCategory, req.getCategory())
             .set(FileObject::getAbility, req.getAbility())
-            .eq(AutoIdEntity::getId, req.getFileId()));
+            .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
+            .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
         return true;
     }
 }

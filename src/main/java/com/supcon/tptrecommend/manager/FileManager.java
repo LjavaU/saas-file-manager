@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.tptrecommend.dto.fileobject.*;
+import com.supcon.tptrecommend.entity.FileObject;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -57,7 +58,7 @@ public interface FileManager {
 
 
 
-    FileObjectResp detail(Long fileId);
+    List<FileObject> detail(FileDetailReq fileId);
 
 
     /**
