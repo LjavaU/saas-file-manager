@@ -58,6 +58,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -588,11 +589,32 @@ public class FileManagerImpl implements FileManager {
         if (Objects.isNull(fileId) && StrUtil.isBlank(objectName)) {
             throw new ClientException("必须提供文件ID或文件全路径参数中的任意一个");
         }
-        fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-            .set(FileObject::getCategory, req.getCategory())
-            .set(FileObject::getAbility, req.getAbility())
-            .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
-            .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
+        String ability = req.getAbility();
+        String category = req.getCategory();
+        if (StrUtil.isAllBlank(ability, category)) {
+            throw new ClientException("文件类别或者属性不能为空");
+        }
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (Objects.nonNull(fileObject)) {
+            String existCategory = fileObject.getCategory();
+            Stream<String> existCategoryStream = StrUtil.isNotBlank(existCategory) ? Arrays.stream(existCategory.split(",")) : Stream.empty();
+            Stream<String> newCategoryStream = StrUtil.isNotBlank(category) ? Arrays.stream(category.split(",")) : Stream.empty();
+
+            String updateCategory = Stream.concat(existCategoryStream, newCategoryStream)
+                .map(String::trim)
+                .filter(StrUtil::isNotBlank)
+                .distinct()
+                .collect(Collectors.joining(","));
+            fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+                .set(StrUtil.isNotBlank(category), FileObject::getCategory, updateCategory)
+                .set(StrUtil.isNotBlank(ability), FileObject::getAbility, ability)
+                .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
+                .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
+
+        } else {
+            throw new ClientException("该文件不存在");
+        }
+
         return true;
     }
 }
