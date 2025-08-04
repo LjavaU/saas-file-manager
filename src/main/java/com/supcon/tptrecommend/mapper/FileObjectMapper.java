@@ -42,7 +42,8 @@ public interface FileObjectMapper extends IBaseMapper<FileObject> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("UPDATE file_object \n" +
         "SET knowledge_parse_state = #{knowledgeParseState}, \n" +
-        "update_time = #{updateTime} \n"+
+        "update_time = #{updateTime},\n" +
+        "file_status = #{fileStatus}" +
         "  where id = #{id}  \n" +
         "  AND tenant_id = #{tenantId} ;")
     void updateKnowledgeParseState(FileObject fileObject);

@@ -18,7 +18,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("file_recommendation")
+    @TableName("file_recommendation")
 @ApiModel(value = "文件推荐问题生成-数据库基础实体", description = "文件推荐问题生成")
 public class FileRecommendation extends BasicEntity<Long> {
 

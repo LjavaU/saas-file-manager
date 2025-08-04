@@ -340,6 +340,9 @@ public class FileManagerImpl implements FileManager {
             throw new ClientException("文件不存在");
         }
         deleteFileObjectHierarchy(fileObject.getObjectName(), id);
+        // 删除文件推荐问题
+        fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
+            .eq(FileRecommendation::getFileId, id));
         minioUtils.removeFile(fileObject.getBucketName(), fileObject.getObjectName());
         // 删除文件的知识库
         KnowledgeFileUploadResp resp = knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), fileObject.getBucketName(), fileObject.getObjectName(), fileObject.getTenantId());
@@ -439,8 +442,15 @@ public class FileManagerImpl implements FileManager {
         List<Long> ids = data.getIds();
         List<FileObject> fileObjects = fileObjectService.listByIds(ids);
         List<String> objectNames = fileObjects.stream().map(FileObject::getObjectName).collect(Collectors.toList());
-        minioUtils.removeFiles(bucket, objectNames);
         fileObjectService.removeBatchByIds(ids);
+        // 删除文件推荐问题
+        fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
+            .in(FileRecommendation::getFileId,ids));
+        // TODO：删除文件对应的知识库 循环调用
+        fileObjects.forEach(fileObject->{
+            knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), bucket, fileObject.getObjectName(), fileObject.getTenantId());
+        });
+        minioUtils.removeFiles(bucket, objectNames);
         return true;
     }
 
