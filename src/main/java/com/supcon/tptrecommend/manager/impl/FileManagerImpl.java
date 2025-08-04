@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
+import cn.hutool.json.JSONUtil;
 import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -21,13 +22,11 @@ import com.supcon.tptrecommend.common.enums.FileKind;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.KnowledgeParseState;
 import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
-import com.supcon.tptrecommend.common.utils.FileUtils;
-import com.supcon.tptrecommend.common.utils.LoginUserUtils;
-import com.supcon.tptrecommend.common.utils.MinioUtils;
-import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
+import com.supcon.tptrecommend.entity.FileRecommendation;
 import com.supcon.tptrecommend.feign.KnowledgeFeign;
 import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
@@ -35,6 +34,7 @@ import com.supcon.tptrecommend.job.KnowledgeParseStatusJob;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
+import com.supcon.tptrecommend.service.IFileRecommendationService;
 import io.minio.StatObjectResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -54,7 +54,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -80,6 +79,8 @@ public class FileManagerImpl implements FileManager {
     private final IJobApi jobApi;
 
     private final KnowledgeFeign knowledgeFeign;
+    
+    private final IFileRecommendationService fileRecommendationService;
 
     /**
      * 用于处理IO密集型任务
@@ -125,13 +126,17 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-        // 上传到知识库
-        uploadToKnowledgeBase(originalFilename, file, objectKey, fileId);
-        // 把上传的文件临时保存
-        String filePath = saveFileTemporary(file, uniqueFilename);
-        if (StrUtil.isBlank(attributes)) {
-            processFileAnalysis(filePath, originalFilename, fileId);
+        // TODO：目前txt、PDF、doc、docx文件不走业务解析逻辑，直接上传到知识库
+        if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
+            // 上传到知识库
+            uploadToKnowledgeBase(file, objectKey, fileId);
+        } else {
+            // 把上传的文件临时保存
+            String filePath = saveFileTemporary(file, uniqueFilename);
+            if (StrUtil.isBlank(attributes)) {
+                processFileAnalysis(filePath, originalFilename, fileId);
 
+            }
         }
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
@@ -150,7 +155,7 @@ public class FileManagerImpl implements FileManager {
                         log.error("删除临时文件失败: {}", filePath, e);
                     }
                 }
-                log.error("文件：{},在读取或者解析过程失败", originalFilename, throwable);
+                log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                 markFileAsParseFailed(fileId);
                 return null;
             });
@@ -162,55 +167,72 @@ public class FileManagerImpl implements FileManager {
     /**
      * 上传到知识库
      *
-     * @param originalFilename 原始文件名
-     * @param file             文件
-     * @param objectKey        对象键
-     * @param fileId           文件 ID
+     * @param file      文件
+     * @param objectKey 对象键
+     * @param fileId    文件 ID
      * @author luhao
      * @since 2025/07/30 14:13:50
      */
-    private void uploadToKnowledgeBase(String originalFilename, MultipartFile file, String objectKey, Long fileId) {
-        if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
-            List<MultipartFile> files = Collections.singletonList(file);
-            KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
-            if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
-                FileDataSimple fileDataSimple = resp.getData().get(0);
-                String status = fileDataSimple.getStatus();
-                FileObject fileObject = new FileObject();
-                fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(status));
-                fileObject.setId(fileId);
-                fileObjectService.updateById(fileObject);
-                List<JobInfo> jobs = jobApi.jobs();
-                if (CollectionUtil.isEmpty(jobs)) {
-                    // 添加一个任务 用于定时轮询知识库文件的解析状态
-                    KnowledgeParseStatusJob knowledgeParseStatusJob = new KnowledgeParseStatusJob();
-                    jobApi.add(knowledgeParseStatusJob);
-                }
-            } else {
-                log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
-                FileObject fileObject = new FileObject();
-                fileObject.setId(fileId);
-                fileObject.setKnowledgeParseState(KnowledgeParseState.RED.getValue());
-                fileObject.setUpdateTime(LocalDateTime.now());
-                fileObject.setTenantId(TenantContext.getCurrentTenant());
-                fileObjectService.updateKnowledgeParseState(fileObject);
+    private void uploadToKnowledgeBase(MultipartFile file, String objectKey, Long fileId) {
+        List<MultipartFile> files = Collections.singletonList(file);
+        KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
+        if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
+            // 通知解析进度
+            ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+            FileDataSimple fileDataSimple = resp.getData().get(0);
+            List<String> keyWords = fileDataSimple.getKey_words();
+            // 保存文件关键词到文件推荐表中
+            saveFileKeywordsToRecommendation(fileId, keyWords);
+            // 更新文件解析状态
+            updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
+            List<JobInfo> jobs = jobApi.jobs();
+            if (CollectionUtil.isEmpty(jobs)) {
+                // 添加一个任务 用于定时轮询知识库文件的解析状态
+                KnowledgeParseStatusJob knowledgeParseStatusJob = new KnowledgeParseStatusJob();
+                jobApi.add(knowledgeParseStatusJob);
             }
-
-
+        } else {
+            log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
+            markKnowledgeFileAsParseFailed(fileId);
         }
+
 
     }
 
+    private void updateKnowledgeParseState(Long fileId, String status) {
+        FileObject fileObject = new FileObject();
+        fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(status));
+        fileObject.setId(fileId);
+        fileObjectService.updateById(fileObject);
+    }
 
-    private void updateFileStatusParseFailed(Long fileId) {
+    private void saveFileKeywordsToRecommendation(Long fileId, List<String> keyWords) {
+        if (CollectionUtil.isNotEmpty(keyWords)) {
+            FileRecommendation fileRecommendation = new FileRecommendation();
+            fileRecommendation.setFileId(fileId);
+            fileRecommendation.setKeyword(String.join(",", keyWords));
+            fileRecommendationService.save(fileRecommendation);
+        }
+    }
+
+
+    private void updateFileStatusParseFailed(Long fileId, KnowledgeParseState parseState) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
+        if (Objects.nonNull(parseState)) {
+            fileObject.setKnowledgeParseState(parseState.getValue());
+        }
         fileObjectService.updateById(fileObject);
     }
 
     private void markFileAsParseFailed(Long fileId) {
-        updateFileStatusParseFailed(fileId);
+        updateFileStatusParseFailed(fileId, null);
+        ProcessProgressSupport.notifyParseComplete(fileId);
+    }
+
+    private void markKnowledgeFileAsParseFailed(Long fileId) {
+        updateFileStatusParseFailed(fileId, KnowledgeParseState.RED);
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 
@@ -475,7 +497,8 @@ public class FileManagerImpl implements FileManager {
         }
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
-
+         // 获取文件id列表
+        Map<Long, List<String>> recommendationMap = loadFileRecommendations(fileObjects);
         // 用于最终返回的列表
         List<FileNodeResp> fileNodes = new ArrayList<>();
         for (FileObject fileObject : fileObjects) {
@@ -491,7 +514,7 @@ public class FileManagerImpl implements FileManager {
 
             if (slashIndex == -1) {
                 // 不包含'/'，是直接子文件
-                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName);
+                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName,recommendationMap);
                 fileNodes.add(node);
             } else {
                 // 包含'/'，说明在子文件夹下
@@ -513,6 +536,14 @@ public class FileManagerImpl implements FileManager {
         return fileNodes;
     }
 
+    private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
+        List<Long> fileIds = fileObjects.stream().map(FileObject::getId).collect(Collectors.toList());
+        List<FileRecommendation> recommendations = fileRecommendationService.list(Wrappers.<FileRecommendation>lambdaQuery().in(FileRecommendation::getFileId,fileIds));
+         return  recommendations.stream()
+             .filter(fileRecommendation -> StrUtil.isNotBlank(fileRecommendation.getQuestions()))
+             .collect(Collectors.toMap(FileRecommendation::getFileId, fileRecommendation -> JSONUtil.toList(fileRecommendation.getQuestions(), String.class)));
+    }
+
     private void getFileFolderNodeResp(String path, FileObject fileObject, String folderName, int fileCount, List<FileNodeResp> fileNodes) {
         FileNodeResp node = new FileNodeResp();
         node.setId(fileObject.getId());
@@ -526,7 +557,7 @@ public class FileManagerImpl implements FileManager {
     }
 
     @NotNull
-    private FileNodeResp getFileNodeResp(FileObject fileObject, String relativePath, String objectName) {
+    private FileNodeResp getFileNodeResp(FileObject fileObject, String relativePath, String objectName, Map<Long, List<String>> recommendationMap) {
         FileNodeResp node = new FileNodeResp();
         node.setId(fileObject.getId());
         node.setType(FileKind.FILE.getValue());
@@ -538,6 +569,7 @@ public class FileManagerImpl implements FileManager {
         node.setFileStatus(fileObject.getFileStatus());
         node.setSize(FileUtils.formatFileSize(fileObject.getFileSize()));
         node.setUploadTime(fileObject.getCreateTime());
+        node.setQuestions(recommendationMap.get(fileObject.getId()));
         return node;
     }
 

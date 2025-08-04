@@ -1,14 +1,13 @@
 package com.supcon.tptrecommend.feign;
 
-import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
-import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
-import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeParseDetails;
+import com.supcon.tptrecommend.feign.entity.knowledge.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -69,6 +68,20 @@ public interface KnowledgeFeign {
                                @RequestPart(value = "object") String object,
                                @RequestPart(value = "tenant_id") String tenantId);
 
+
+    /**
+     * 获取知识库文件的推荐问题
+     *
+     * @param req 请求体
+     * @return {@link KnowledgeRecommendationResp }
+     * @author luhao
+     * @since 2025/08/01 16:15:44
+     */
+    @PostMapping(value = "/api/industry_domain_qa/saas/new/get_recommendation")
+    KnowledgeFileUploadResp< List<String>> getRecommendation(@RequestBody KnowledgeRecommendationReq req);
+
+
+
     @Slf4j
     @Component
     class KnowledgeFeignFallBack implements FallbackFactory<KnowledgeFeign> {
@@ -91,7 +104,13 @@ public interface KnowledgeFeign {
 
                 @Override
                 public KnowledgeFileUploadResp deleteKnowledgeBase(String user_id, String bucket, String object, String tenant_id) {
-                    log.error("/api/industry_domain_qa/saas/new/delete_knowledge_base", cause);
+                    log.error("/api/industry_domain_qa/saas/new/delete_knowledge_base接口访问出错", cause);
+                    return null;
+                }
+
+                @Override
+                public KnowledgeFileUploadResp<List<String>> getRecommendation(KnowledgeRecommendationReq req) {
+                    log.error("/api/industry_domain_qa/saas/new/get_recommendation接口访问出错", cause);
                     return null;
                 }
             };

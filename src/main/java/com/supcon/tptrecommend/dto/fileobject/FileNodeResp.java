@@ -6,6 +6,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @ApiModel(description = "返回文件层级返回体")
@@ -45,5 +46,8 @@ public class FileNodeResp {
 
     @ApiModelProperty(value = "文件夹下的文件数量")
     private Integer fileCount;
+
+    @ApiModelProperty(value = "推荐问题")
+    private List<String> questions;
 
 }
