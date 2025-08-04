@@ -121,6 +121,9 @@ public class FileUtils {
      * @since 2025/07/30 14:12:27
      */
     public static boolean isKnowledgeDocumentFile(String originalFilename) {
+        if (originalFilename == null) {
+            return false;
+        }
         return originalFilename.endsWith(".txt") || originalFilename.endsWith(".doc") ||
             originalFilename.endsWith(".docx") || originalFilename.endsWith(".pdf");
     }

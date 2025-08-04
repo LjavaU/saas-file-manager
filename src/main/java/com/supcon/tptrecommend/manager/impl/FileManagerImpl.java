@@ -79,7 +79,7 @@ public class FileManagerImpl implements FileManager {
     private final IJobApi jobApi;
 
     private final KnowledgeFeign knowledgeFeign;
-    
+
     private final IFileRecommendationService fileRecommendationService;
 
     /**
@@ -340,14 +340,16 @@ public class FileManagerImpl implements FileManager {
             throw new ClientException("文件不存在");
         }
         deleteFileObjectHierarchy(fileObject.getObjectName(), id);
-        // 删除文件推荐问题
-        fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
-            .eq(FileRecommendation::getFileId, id));
         minioUtils.removeFile(fileObject.getBucketName(), fileObject.getObjectName());
-        // 删除文件的知识库
-        KnowledgeFileUploadResp resp = knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), fileObject.getBucketName(), fileObject.getObjectName(), fileObject.getTenantId());
-        if (Objects.isNull(resp) || resp.getCode() != HttpStatus.HTTP_OK) {
-            log.error("删除文件对应的知识库失败: {}", fileObject.getObjectName());
+        if (FileUtils.isKnowledgeDocumentFile(fileObject.getOriginalName())) {
+            // 删除文件推荐问题
+            fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
+                .eq(FileRecommendation::getFileId, id));
+            // 删除文件的知识库
+            KnowledgeFileUploadResp resp = knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), fileObject.getBucketName(), fileObject.getObjectName(), fileObject.getTenantId());
+            if (Objects.isNull(resp) || resp.getCode() != HttpStatus.HTTP_OK) {
+                log.error("删除文件对应的知识库失败: {}", fileObject.getObjectName());
+            }
         }
         return true;
     }
@@ -443,12 +445,15 @@ public class FileManagerImpl implements FileManager {
         List<FileObject> fileObjects = fileObjectService.listByIds(ids);
         List<String> objectNames = fileObjects.stream().map(FileObject::getObjectName).collect(Collectors.toList());
         fileObjectService.removeBatchByIds(ids);
-        // 删除文件推荐问题
-        fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
-            .in(FileRecommendation::getFileId,ids));
+
         // TODO：删除文件对应的知识库 循环调用
-        fileObjects.forEach(fileObject->{
-            knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), bucket, fileObject.getObjectName(), fileObject.getTenantId());
+        fileObjects.forEach(fileObject -> {
+            if (FileUtils.isKnowledgeDocumentFile(fileObject.getOriginalName())) {
+                // 删除文件推荐问题
+                fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
+                    .in(FileRecommendation::getFileId, fileObject.getId()));
+                knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), bucket, fileObject.getObjectName(), fileObject.getTenantId());
+            }
         });
         minioUtils.removeFiles(bucket, objectNames);
         return true;
@@ -507,7 +512,7 @@ public class FileManagerImpl implements FileManager {
         }
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
-         // 获取文件id列表
+        // 获取文件id列表
         Map<Long, List<String>> recommendationMap = loadFileRecommendations(fileObjects);
         // 用于最终返回的列表
         List<FileNodeResp> fileNodes = new ArrayList<>();
@@ -524,7 +529,7 @@ public class FileManagerImpl implements FileManager {
 
             if (slashIndex == -1) {
                 // 不包含'/'，是直接子文件
-                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName,recommendationMap);
+                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName, recommendationMap);
                 fileNodes.add(node);
             } else {
                 // 包含'/'，说明在子文件夹下
@@ -548,10 +553,10 @@ public class FileManagerImpl implements FileManager {
 
     private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
         List<Long> fileIds = fileObjects.stream().map(FileObject::getId).collect(Collectors.toList());
-        List<FileRecommendation> recommendations = fileRecommendationService.list(Wrappers.<FileRecommendation>lambdaQuery().in(FileRecommendation::getFileId,fileIds));
-         return  recommendations.stream()
-             .filter(fileRecommendation -> StrUtil.isNotBlank(fileRecommendation.getQuestions()))
-             .collect(Collectors.toMap(FileRecommendation::getFileId, fileRecommendation -> JSONUtil.toList(fileRecommendation.getQuestions(), String.class)));
+        List<FileRecommendation> recommendations = fileRecommendationService.list(Wrappers.<FileRecommendation>lambdaQuery().in(FileRecommendation::getFileId, fileIds));
+        return recommendations.stream()
+            .filter(fileRecommendation -> StrUtil.isNotBlank(fileRecommendation.getQuestions()))
+            .collect(Collectors.toMap(FileRecommendation::getFileId, fileRecommendation -> JSONUtil.toList(fileRecommendation.getQuestions(), String.class)));
     }
 
     private void getFileFolderNodeResp(String path, FileObject fileObject, String folderName, int fileCount, List<FileNodeResp> fileNodes) {
