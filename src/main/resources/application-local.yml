@@ -21,6 +21,7 @@ sup:
     addresses:  system-schedule-obp-dev.supcon5t.com/xxl-job-admin
     executor:
         address: http://10.30.75.78:9998
+        appName: tpt-recommend-local
   tenant:
     dt: 0
     enabled: true
@@ -56,6 +57,6 @@ service:
   index:
     address: http://tpt-index-gpt-dev.supcon5t.com
   knowledge:
-    address: http://10.16.11.25:8440
+    address: http://supcon-rag-indu-dev.supcon5t.com
 file:
   upload-dir: D:/temp/uploads
