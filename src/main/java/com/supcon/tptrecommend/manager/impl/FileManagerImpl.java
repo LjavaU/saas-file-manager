@@ -184,7 +184,7 @@ public class FileManagerImpl implements FileManager {
      *
      * @param file           文件
      * @param uniqueFilename 唯一文件名
-     * @param objectKey      对象键
+     * @param objectKey      对象键名
      * @param fileId         文件 ID
      * @author luhao
      * @since 2025/07/30 14:13:50
