@@ -7,10 +7,9 @@ import cn.hutool.http.HttpStatus;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.supcon.framework.schedule.core.api.IJobApi;
-import com.supcon.framework.schedule.core.entity.JobInfo;
 import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.systemcommon.entity.IDList;
@@ -18,9 +17,7 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.enums.FileKind;
-import com.supcon.tptrecommend.common.enums.FileStatus;
-import com.supcon.tptrecommend.common.enums.KnowledgeParseState;
+import com.supcon.tptrecommend.common.enums.*;
 import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
 import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
@@ -30,7 +27,6 @@ import com.supcon.tptrecommend.entity.FileRecommendation;
 import com.supcon.tptrecommend.feign.KnowledgeFeign;
 import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
-import com.supcon.tptrecommend.job.KnowledgeParseStatusJob;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
@@ -75,8 +71,6 @@ public class FileManagerImpl implements FileManager {
     private final MinioUtils minioUtils;
 
     private final IFileObjectService fileObjectService;
-
-    private final IJobApi jobApi;
 
     private final KnowledgeFeign knowledgeFeign;
 
@@ -185,12 +179,6 @@ public class FileManagerImpl implements FileManager {
             saveFileKeywordsToRecommendation(fileId, keyWords);
             // 更新文件解析状态
             updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
-            List<JobInfo> jobs = jobApi.jobs();
-            if (CollectionUtil.isEmpty(jobs)) {
-                // 添加一个任务 用于定时轮询知识库文件的解析状态
-                KnowledgeParseStatusJob knowledgeParseStatusJob = new KnowledgeParseStatusJob();
-                jobApi.add(knowledgeParseStatusJob);
-            }
         } else {
             log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
             markKnowledgeFileAsParseFailed(fileId);
@@ -578,7 +566,7 @@ public class FileManagerImpl implements FileManager {
         node.setType(FileKind.FILE.getValue());
         node.setName(relativePath.substring(relativePath.indexOf("_") + 1));
         node.setPath(objectName);
-        node.setCategory(fileObject.getCategory());
+        node.setCategory(FileObjectConvert.INSTANCE.mapCategory(fileObject));
         node.setAbility(fileObject.getAbility());
         node.setContentOverview(fileObject.getContentOverview());
         node.setFileStatus(fileObject.getFileStatus());
@@ -642,26 +630,52 @@ public class FileManagerImpl implements FileManager {
             throw new ClientException("文件类别或者属性不能为空");
         }
         FileObject fileObject = fileObjectService.getById(fileId);
-        if (Objects.nonNull(fileObject)) {
-            String existCategory = fileObject.getCategory();
-            Stream<String> existCategoryStream = StrUtil.isNotBlank(existCategory) ? Arrays.stream(existCategory.split(",")) : Stream.empty();
-            Stream<String> newCategoryStream = StrUtil.isNotBlank(category) ? Arrays.stream(category.split(",")) : Stream.empty();
+        if (Objects.isNull(fileObject)) {
+            throw new ClientException("文件不存在");
+        }
+        // 根据类别标识获取类别
+        FileCategoryAbilityAssociation abilityAssociation = FileCategoryAbilityAssociation.getCategoryByIdentifier(category);
+        if (Objects.nonNull(abilityAssociation)) {
+            // 获取类别的二级分类
+            SubCategoryEnum categoryType = abilityAssociation.getCategoryType();
+            // 获取类别的三级分类
+            TagHistoryCategory thirdCategoryType = abilityAssociation.getTagHistoryCategory();
+            LambdaUpdateWrapper<FileObject> lambdaUpdate = Wrappers.lambdaUpdate();
+            String subCategory = mergeUpdatedProperties(String.valueOf(categoryType.getCode()), fileObject.getSubCategory());
+            if (Objects.nonNull(subCategory)) {
+                lambdaUpdate.set(FileObject::getSubCategory, subCategory);
 
-            String updateCategory = Stream.concat(existCategoryStream, newCategoryStream)
-                .map(String::trim)
-                .filter(StrUtil::isNotBlank)
-                .distinct()
-                .collect(Collectors.joining(","));
+            }
+            String thirdCategory = mergeUpdatedProperties(String.valueOf(thirdCategoryType.getCode()), fileObject.getThirdLevelCategory());
+            if (Objects.nonNull(thirdCategory)) {
+                lambdaUpdate.set(FileObject::getThirdLevelCategory, thirdCategory);
+            }
+            fileObjectService.update(new FileObject(), lambdaUpdate
+                .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
+                .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
+        }
+
+        String updateAbility = mergeUpdatedProperties(ability, fileObject.getAbility());
+        if (Objects.nonNull(updateAbility)) {
             fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-                .set(StrUtil.isNotBlank(category), FileObject::getCategory, updateCategory)
-                .set(StrUtil.isNotBlank(ability), FileObject::getAbility, ability)
+                .set(FileObject::getAbility, updateAbility)
                 .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
                 .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
 
-        } else {
-            throw new ClientException("该文件不存在");
         }
-
         return true;
+    }
+
+    private String mergeUpdatedProperties(String updateProperty, String sourceProperty) {
+        if (StrUtil.isBlank(updateProperty)) {
+            return null;
+        }
+        Stream<String> existPropertyStream = StrUtil.isNotBlank(updateProperty) ? Arrays.stream(updateProperty.split(",")) : Stream.empty();
+        Stream<String> newPropertyStream = StrUtil.isNotBlank(sourceProperty) ? Arrays.stream(sourceProperty.split(",")) : Stream.empty();
+        return Stream.concat(existPropertyStream, newPropertyStream)
+            .map(String::trim)
+            .filter(StrUtil::isNotBlank)
+            .distinct()
+            .collect(Collectors.joining(","));
     }
 }

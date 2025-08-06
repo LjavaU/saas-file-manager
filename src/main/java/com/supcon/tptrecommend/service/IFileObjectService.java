@@ -48,7 +48,7 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      * @author luhao
      * @since 2025/07/30 11:27:12
      */
-    List<FileObjectResp> getKnowledgeParsing();
+    List<FileObjectResp> getKnowledgeParsing(Integer knowledgeParseState);
 
     /**
      * 更新知识库解析状态
@@ -58,4 +58,6 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      * @since 2025/07/30 13:27:32
      */
     void updateKnowledgeParseState(FileObject fileObject);
+
+    List<FileObjectResp> getIndexFile(int subCategory);
 }

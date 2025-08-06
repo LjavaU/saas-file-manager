@@ -1,5 +1,9 @@
 package com.supcon.tptrecommend.convert.fileobject;
 
+import cn.hutool.core.util.NumberUtil;
+import cn.hutool.core.util.StrUtil;
+import com.supcon.tptrecommend.common.enums.FileCategoryAbilityAssociation;
+import com.supcon.tptrecommend.common.enums.TagHistoryCategory;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
@@ -7,6 +11,8 @@ import com.supcon.tptrecommend.entity.FileObject;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
+
+import java.util.Arrays;
 
 /**
  * <p>
@@ -25,11 +31,38 @@ public interface FileObjectConvert {
     FileObject convert(FileObjectCreateReq fileObjectCreateReq);
 
     @Mapping(target = "fileSize", expression = "java(mapFileSize(fileObject.getFileSize()))")
+    @Mapping(target = "category", expression = "java(mapCategory(fileObject))")
     FileObjectResp convert(FileObject fileObject);
 
-    // 自定义方法
     default String mapFileSize(Long fileSize) {
         return FileUtils.formatFileSize(fileSize);
 
     }
+
+    default String mapCategory(FileObject fileObject) {
+        String thirdLevelCategoryCode = fileObject.getThirdLevelCategory();
+        if (StrUtil.isNotBlank(thirdLevelCategoryCode)) {
+            String categoryName = TagHistoryCategory.getCategoryByCode(convert(thirdLevelCategoryCode));
+            if (categoryName != null) {
+                return categoryName;
+            }
+        }
+        String subCategoryCode = fileObject.getSubCategory();
+        if (StrUtil.isNotBlank(subCategoryCode)) {
+            String categoryName = FileCategoryAbilityAssociation.getCategoryNameByCode(convert(subCategoryCode));
+            if (categoryName != null) {
+                return categoryName;
+            }
+        }
+        return fileObject.getCategory();
+    }
+
+
+    default Integer[] convert(String convert) {
+        return Arrays.stream(convert.split(","))
+            .filter(NumberUtil::isNumber)
+            .map(Integer::parseInt)
+            .toArray(Integer[]::new);
+    }
+
 }

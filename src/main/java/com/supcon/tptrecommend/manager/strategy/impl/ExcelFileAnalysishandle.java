@@ -77,12 +77,15 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
     }
 
 
-    private void updateFileParseMetadata(Long fileId, String category, String summary, Integer subcategory) {
+    private void updateFileParseMetadata(Long fileId, String category, String summary, Integer subcategory, Integer thirdLevelCategory) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setCategory(category);
         fileObject.setContentOverview(summary);
-        fileObject.setSubCategory(subcategory);
+        fileObject.setSubCategory(String.valueOf(subcategory));
+        if (thirdLevelCategory != -1) {
+            fileObject.setThirdLevelCategory(String.valueOf(thirdLevelCategory));
+        }
         fileObjectService.updateById(fileObject);
     }
 
@@ -126,7 +129,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         // 把文件进行分类
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
-        updateFileParseMetadata(fileId, FileCategory.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(),fileClassifyResp.getSubcategory());
+        updateFileParseMetadata(fileId, FileCategory.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(), fileClassifyResp.getSubcategory(), fileClassifyResp.getThird_level_category());
         // 通知解析进程【LLM分类成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
         // 根据业务分类找出业务处理器
@@ -161,7 +164,7 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
 
     }
 
-    private  void setCsvFileEncoding(File file, String fileSuffix, ExcelReaderBuilder readerBuilder) {
+    private void setCsvFileEncoding(File file, String fileSuffix, ExcelReaderBuilder readerBuilder) {
         if ("csv".equals(fileSuffix)) {
             readerBuilder
                 .excelType(ExcelTypeEnum.CSV)
