@@ -1,6 +1,5 @@
 package com.supcon.tptrecommend.manager.strategy;
 
-import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -43,7 +42,7 @@ public class FileAnalysisHandleFactory {
         // 使用大写进行查找，实现不区分大小写
         FileAnalysisHandle value = strategyMap.get(fileType.toUpperCase());
         if (value == null) {
-            throw new UnsupportedFileTypeException("不支持的文件处理类型：" + fileType);
+            return Optional.empty();
         }
         return Optional.of(value);
     }

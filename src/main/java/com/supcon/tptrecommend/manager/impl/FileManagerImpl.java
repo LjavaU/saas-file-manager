@@ -18,7 +18,6 @@ import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.enums.*;
-import com.supcon.tptrecommend.common.exception.UnsupportedFileTypeException;
 import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
@@ -28,6 +27,7 @@ import com.supcon.tptrecommend.feign.KnowledgeFeign;
 import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
 import com.supcon.tptrecommend.manager.FileManager;
+import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
@@ -38,11 +38,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
@@ -66,6 +73,12 @@ public class FileManagerImpl implements FileManager {
     @Value("${file.upload-dir:D:/temp/uploads}")
     private String uploadDir;
 
+    @Value("${file.kno-upload-dir:D:/temp/uploads/kno}")
+    private String knoUploadDir;
+
+    @Value("${service.knowledge.address:localhost}")
+    private String knowledgeUploadUrl;
+
     public static final String FILE_SPLIT = "/";
 
     private final MinioUtils minioUtils;
@@ -75,6 +88,8 @@ public class FileManagerImpl implements FileManager {
     private final KnowledgeFeign knowledgeFeign;
 
     private final IFileRecommendationService fileRecommendationService;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     /**
      * 用于处理IO密集型任务
@@ -128,56 +143,58 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
+
         // TODO：目前txt、PDF、doc、docx类型的文件上传到知识库
         if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
-            uploadToKnowledgeBase(file, objectKey, fileId);
+            uploadToKnowledgeBase(file, uniqueFilename, objectKey, fileId);
         }
-        // 把上传的文件临时保存
-        String filePath = saveFileTemporary(file, uniqueFilename);
+
         if (StrUtil.isBlank(attributes)) {
-            processFileAnalysis(filePath, originalFilename, fileId);
+            processFileAnalysis(file, uniqueFilename, originalFilename, fileId);
 
         }
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void processFileAnalysis(String filePath, String originalFilename, Long fileId) {
-        if (Objects.nonNull(filePath)) {
+    private void processFileAnalysis(MultipartFile file, String uniqueFilename, String originalFilename, Long fileId) {
+        Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
+        if (handler.isPresent()) {
+            // 把上传的文件临时保存
+            String filePath = saveFileTemporary(file, uniqueFilename, uploadDir);
+            if (Objects.isNull(filePath)) {
+                markFileAsParseFailed(fileId);
+                return;
+            }
+            FileAnalysisHandle fileAnalysisHandle = handler.get();
             CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename))
-                    .ifPresent(fileAnalysisHandle -> fileAnalysisHandle.handleFileAnalysis(filePath, fileId));
+                fileAnalysisHandle.handleFileAnalysis(filePath, fileId);
             }), EXECUTOR).exceptionally(throwable -> {
-                // 删除临时文件
-                if (throwable.getCause() instanceof UnsupportedFileTypeException) {
-                    try {
-                        Files.deleteIfExists(Paths.get(filePath));
-                    } catch (IOException e) {
-                        log.error("删除临时文件失败: {}", filePath, e);
-                    }
-                }
                 log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                 markFileAsParseFailed(fileId);
                 return null;
             });
         } else {
-            markFileAsParseFailed(fileId);
+            log.error("文件：{},不支持解析", originalFilename);
         }
     }
 
     /**
      * 上传到知识库
      *
-     * @param file      文件
-     * @param objectKey 对象键
-     * @param fileId    文件 ID
+     * @param file           文件
+     * @param uniqueFilename 唯一文件名
+     * @param objectKey      对象键名
+     * @param fileId         文件 ID
      * @author luhao
      * @since 2025/07/30 14:13:50
+     *
+     *
      */
-    private void uploadToKnowledgeBase(MultipartFile file, String objectKey, Long fileId) {
+    private void uploadToKnowledgeBase(MultipartFile file, String uniqueFilename, String objectKey, Long fileId) {
+        String knoFilePath = saveFileTemporary(file, uniqueFilename, knoUploadDir);
         CompletableFuture.runAsync(TtlRunnable.get(() -> {
-            List<MultipartFile> files = Collections.singletonList(file);
-            KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
+            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(knoFilePath, objectKey, fileId);
             if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
                 // 通知解析进度
                 ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
@@ -191,13 +208,58 @@ public class FileManagerImpl implements FileManager {
                 log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
                 markKnowledgeFileAsParseFailed(fileId);
             }
+            deleteTemporaryFile(knoFilePath);
         }), KNOWLEDGE_EXECUTOR).exceptionally(throwable -> {
             log.error("上传文件到知识库失败", throwable);
             markKnowledgeFileAsParseFailed(fileId);
+            deleteTemporaryFile(knoFilePath);
             return null;
         });
 
 
+    }
+
+    private void deleteTemporaryFile(String filePath) {
+        try {
+            Files.deleteIfExists(Paths.get(filePath));
+        } catch (IOException e) {
+            log.error("删除临时文件失败: {}", filePath, e);
+        }
+    }
+
+    private KnowledgeFileUploadResp<List<FileDataSimple>> uploadFileUploadToKnowledge(String filePath, String objectKey, Long fileId) {
+        String url = knowledgeUploadUrl + "/api/industry_domain_qa/saas/new/upload_files";
+        // 1. 设置请求头
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        // 2. 创建 MultiValueMap 来构建请求体
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+
+        // 3. 将 File 包装成 FileSystemResource
+        body.add("files", new FileSystemResource(new File(filePath)));
+        body.add("user_id", LoginUserUtils.getLoginUserInfo().getId());
+        body.add("bucket", bucket);
+        body.add("object", objectKey);
+        body.add("tenant_id", TenantContext.getCurrentTenant());
+
+        // 4. 将请求头和请求体封装到 HttpEntity 中
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        ParameterizedTypeReference<KnowledgeFileUploadResp<List<FileDataSimple>>> responseType =
+            new ParameterizedTypeReference<KnowledgeFileUploadResp<List<FileDataSimple>>>() {
+            };
+
+        ResponseEntity<KnowledgeFileUploadResp<List<FileDataSimple>>> responseEntity = restTemplate.exchange(
+            url,
+            HttpMethod.POST,
+            requestEntity,
+            responseType
+        );
+        if (responseEntity.getStatusCode().is2xxSuccessful()) {
+            return responseEntity.getBody();
+        }
+        return null;
     }
 
     private void updateKnowledgeParseState(Long fileId, String status) {
@@ -246,7 +308,7 @@ public class FileManagerImpl implements FileManager {
      * @author luhao
      * @since 2025/06/19 10:17:59
      */
-    private String saveFileTemporary(MultipartFile file, String uniqueFilename) {
+    private String saveFileTemporary(MultipartFile file, String uniqueFilename, String uploadDir) {
         // 确保目录存在
         Path uploadPath = Paths.get(uploadDir);
         try {
@@ -642,7 +704,9 @@ public class FileManagerImpl implements FileManager {
         if (StrUtil.isAllBlank(ability, category)) {
             throw new ClientException("文件类别或者属性不能为空");
         }
-        FileObject fileObject = fileObjectService.getById(fileId);
+        FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
+            .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName)
+            .eq(Objects.nonNull(fileId), FileObject::getId, fileId));
         if (Objects.isNull(fileObject)) {
             throw new ClientException("文件不存在");
         }

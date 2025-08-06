@@ -60,3 +60,4 @@ service:
     address: http://supcon-rag-indu-dev.supcon5t.com
 file:
   upload-dir: D:/temp/uploads
+  kno-upload-dir: D:/temp/uploads/kno
