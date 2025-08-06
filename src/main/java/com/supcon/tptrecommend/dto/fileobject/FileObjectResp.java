@@ -60,4 +60,6 @@ public class FileObjectResp extends BasicEntity<Long> {
     @ApiModelProperty(value = "文件解析状态，【0-未解析，1-解析完成，2-解释失败】")
     private Integer fileStatus;
 
+    @ApiModelProperty(value = "所属分类标识")
+    private String categoryIdentifier;
 }

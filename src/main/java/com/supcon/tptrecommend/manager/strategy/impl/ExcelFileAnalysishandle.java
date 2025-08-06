@@ -7,8 +7,7 @@ import com.alibaba.excel.read.builder.ExcelReaderBuilder;
 import com.alibaba.excel.support.ExcelTypeEnum;
 import com.google.common.collect.Sets;
 import com.supcon.systemcommon.exception.ServerException;
-import com.supcon.tptrecommend.common.enums.FileCategory;
-import com.supcon.tptrecommend.common.enums.FileStatus;
+import com.supcon.tptrecommend.common.enums.*;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.MarkdownConverter;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
@@ -85,6 +84,9 @@ public class ExcelFileAnalysishandle implements FileAnalysisHandle {
         fileObject.setSubCategory(String.valueOf(subcategory));
         if (thirdLevelCategory != -1) {
             fileObject.setThirdLevelCategory(String.valueOf(thirdLevelCategory));
+            fileObject.setAbility(FileCategoryAbilityAssociation.getAbilityByTagHistoryCategory(TagHistoryCategory.getByCode(thirdLevelCategory)));
+        } else {
+            fileObject.setAbility(FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.getByCode(subcategory)));
         }
         fileObjectService.updateById(fileObject);
     }

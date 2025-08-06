@@ -32,6 +32,7 @@ public interface FileObjectConvert {
 
     @Mapping(target = "fileSize", expression = "java(mapFileSize(fileObject.getFileSize()))")
     @Mapping(target = "category", expression = "java(mapCategory(fileObject))")
+    @Mapping(target = "categoryIdentifier", expression = "java(mapCategoryIdentifier(fileObject))")
     FileObjectResp convert(FileObject fileObject);
 
     default String mapFileSize(Long fileSize) {
@@ -49,12 +50,30 @@ public interface FileObjectConvert {
         }
         String subCategoryCode = fileObject.getSubCategory();
         if (StrUtil.isNotBlank(subCategoryCode)) {
-            String categoryName = FileCategoryAbilityAssociation.getCategoryNameByCode(convert(subCategoryCode));
+            String categoryName = FileCategoryAbilityAssociation.getCategoryNameBySubCategoryCode(convert(subCategoryCode));
             if (categoryName != null) {
                 return categoryName;
             }
         }
         return fileObject.getCategory();
+    }
+
+    default String mapCategoryIdentifier(FileObject fileObject) {
+        String thirdLevelCategoryCode = fileObject.getThirdLevelCategory();
+        if (StrUtil.isNotBlank(thirdLevelCategoryCode)) {
+            String categoryIdentifier = FileCategoryAbilityAssociation.getCategoryIdentifierByTagHistoryCode(convert(thirdLevelCategoryCode));
+            if (StrUtil.isNotBlank(categoryIdentifier)) {
+                return categoryIdentifier;
+            }
+        }
+        String subCategoryCode = fileObject.getSubCategory();
+        if (StrUtil.isNotBlank(subCategoryCode)) {
+            String categoryIdentifier = FileCategoryAbilityAssociation.getCategoryIdentifierBySubCategoryCode(convert(subCategoryCode));
+            if (StrUtil.isNotBlank(categoryIdentifier)) {
+                return categoryIdentifier;
+            }
+        }
+        return null;
     }
 
 

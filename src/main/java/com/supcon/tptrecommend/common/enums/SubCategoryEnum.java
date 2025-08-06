@@ -3,6 +3,8 @@ package com.supcon.tptrecommend.common.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.Arrays;
+
 /**
  * 业务分类枚举
  *
@@ -49,4 +51,12 @@ public enum SubCategoryEnum {
         return null;
 
     }
+    // 根据code获取枚举
+    public static SubCategoryEnum getByCode(Integer code) {
+        return Arrays.stream(SubCategoryEnum.values())
+            .filter(item -> item.code.equals(code))
+            .findFirst()
+            .orElse(null);
+    }
+
 }
