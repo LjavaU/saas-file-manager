@@ -82,7 +82,15 @@ public class FileManagerImpl implements FileManager {
      * 为了保证服务的可用性，如果队列已满，则丢弃解析任务
      */
     private final Executor EXECUTOR = new ThreadPoolExecutor(6, 12,
-        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(10),
+        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
+        new ThreadPoolExecutor.AbortPolicy());
+
+
+    /**
+     * 知识库解析线程池
+     */
+    private final Executor KNOWLEDGE_EXECUTOR = new ThreadPoolExecutor(4, 8,
+        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
         new ThreadPoolExecutor.AbortPolicy());
 
 
@@ -120,18 +128,17 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-        // TODO：目前txt、PDF、doc、docx文件不走业务解析逻辑，直接上传到知识库
+        // TODO：目前txt、PDF、doc、docx类型的文件上传到知识库
         if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
-            // 上传到知识库
             uploadToKnowledgeBase(file, objectKey, fileId);
-        } else {
-            // 把上传的文件临时保存
-            String filePath = saveFileTemporary(file, uniqueFilename);
-            if (StrUtil.isBlank(attributes)) {
-                processFileAnalysis(filePath, originalFilename, fileId);
-
-            }
         }
+        // 把上传的文件临时保存
+        String filePath = saveFileTemporary(file, uniqueFilename);
+        if (StrUtil.isBlank(attributes)) {
+            processFileAnalysis(filePath, originalFilename, fileId);
+
+        }
+
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
@@ -168,21 +175,27 @@ public class FileManagerImpl implements FileManager {
      * @since 2025/07/30 14:13:50
      */
     private void uploadToKnowledgeBase(MultipartFile file, String objectKey, Long fileId) {
-        List<MultipartFile> files = Collections.singletonList(file);
-        KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
-        if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
-            // 通知解析进度
-            ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
-            FileDataSimple fileDataSimple = resp.getData().get(0);
-            List<String> keyWords = fileDataSimple.getKey_words();
-            // 保存文件关键词到文件推荐表中
-            saveFileKeywordsToRecommendation(fileId, keyWords);
-            // 更新文件解析状态
-            updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
-        } else {
-            log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
+        CompletableFuture.runAsync(TtlRunnable.get(() -> {
+            List<MultipartFile> files = Collections.singletonList(file);
+            KnowledgeFileUploadResp<List<FileDataSimple>> resp = knowledgeFeign.uploadFiles(files, String.valueOf(LoginUserUtils.getLoginUserInfo().getId()), bucket, objectKey, TenantContext.getCurrentTenant());
+            if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
+                // 通知解析进度
+                ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+                FileDataSimple fileDataSimple = resp.getData().get(0);
+                List<String> keyWords = fileDataSimple.getKey_words();
+                // 保存文件关键词到文件推荐表中
+                saveFileKeywordsToRecommendation(fileId, keyWords);
+                // 更新文件解析状态
+                updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
+            } else {
+                log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
+                markKnowledgeFileAsParseFailed(fileId);
+            }
+        }), KNOWLEDGE_EXECUTOR).exceptionally(throwable -> {
+            log.error("上传文件到知识库失败", throwable);
             markKnowledgeFileAsParseFailed(fileId);
-        }
+            return null;
+        });
 
 
     }

@@ -1,5 +1,6 @@
 package com.supcon.tptrecommend.common.enums;
 
+import cn.hutool.core.util.StrUtil;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -55,7 +56,7 @@ public enum FileCategoryAbilityAssociation {
 
     HEN_REDESIGN_DESIGN_INFO_INFO_CHECK(HEAT_EXCHANGER_NETWORK_DESIGN_INFO, null, "hen_redesign_design_info", "换热网络设计信息", "info_check", "上传数据与校验"),
     F_IDX_REPORT_DATA_REPORT(METRICS_BUSINESS_REPORT_DATA, null, "f_idx_report", "指标业务报表数据", "data_report", "报表数据解析"),
-    EXAN_DATA_PROCESS_RECEIVED_FORM(EXAM_QUESTION_DATA, null, "exam_data", "考题资料数据", "process_received_form", "考题自动生成"),
+    EXAM_DATA_PROCESS_RECEIVED_FORM(EXAM_QUESTION_DATA, null, "exam_data", "考题资料数据", "process_received_form", "考题自动生成"),
     REDESIGN_ENERGY_INFO_EXERGY_CAL(OVERALL_INFORMATION_DEVICE, null, "redesign_energy_info", "装置整体信息", "exergy_cal", "节能潜力消耗分析"),
     HEN_REDESIGN_RESTRICTED_SELECT_FORBIDDEN_RULE(CONDITION_INPUT, null, "hen_redesign_restricted", "限制条件输入", "select_forbidden_rule", "给定厂级限制条件");
 
@@ -117,7 +118,7 @@ public enum FileCategoryAbilityAssociation {
      * @since 2025/08/06 11:01:26
      *
      */
-    public static String getCategoryNameByCode(Integer... code) {
+    public static String getCategoryNameBySubCategoryCode(Integer... code) {
         List<SubCategoryEnum> subCategoryEnums = Arrays.stream(SubCategoryEnum.values())
             .filter(item -> Arrays.asList(code).contains(item.getCode()))
             .collect(Collectors.toList());
@@ -125,5 +126,88 @@ public enum FileCategoryAbilityAssociation {
             .filter(item -> subCategoryEnums.contains(item.getCategoryType()))
             .map(FileCategoryAbilityAssociation::getCategoryName)
             .collect(Collectors.joining(","));
+    }
+
+    /**
+     * 根据类别code获取类别标识
+     *
+     * @param code 法典
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/06 15:22:02
+     *
+     */
+    public static String getCategoryIdentifierBySubCategoryCode(Integer... code) {
+        List<SubCategoryEnum> subCategoryEnums = Arrays.stream(SubCategoryEnum.values())
+            .filter(item -> Arrays.asList(code).contains(item.getCode()))
+            .collect(Collectors.toList());
+        return Arrays.stream(FileCategoryAbilityAssociation.values())
+            .filter(item -> subCategoryEnums.contains(item.getCategoryType()))
+            .map(FileCategoryAbilityAssociation::getCategoryIdentifier)
+            .filter(StrUtil::isNotBlank)
+            .collect(Collectors.joining(","));
+    }
+
+    /**
+     * 根据三级类别code获取类别标识
+     *
+     * @param code 法典
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/06 15:32:06
+     *
+     */
+    public static String getCategoryIdentifierByTagHistoryCode(Integer... code) {
+        List<TagHistoryCategory> tagHistoryCategoryEnums = Arrays.stream(TagHistoryCategory.values())
+            .filter(item -> Arrays.asList(code).contains(item.getCode()))
+            .collect(Collectors.toList());
+        return Arrays.stream(FileCategoryAbilityAssociation.values())
+            .filter(item -> tagHistoryCategoryEnums.contains(item.getTagHistoryCategory()))
+            .map(FileCategoryAbilityAssociation::getCategoryIdentifier)
+            .filter(StrUtil::isNotBlank)
+            .collect(Collectors.joining(","));
+    }
+
+
+    /**
+     * 根据三级类别获取能力
+     *
+     * @param tagHistoryCategory 位号历史类别
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/06 16:03:38
+     *
+     */
+    public static String getAbilityByTagHistoryCategory(TagHistoryCategory tagHistoryCategory) {
+        if (tagHistoryCategory == null) {
+            return null;
+        }
+        return Arrays.stream(FileCategoryAbilityAssociation.values())
+            .filter(item -> tagHistoryCategory.equals(item.getTagHistoryCategory()))
+            .map(FileCategoryAbilityAssociation::getAssociatedCapability)
+            .filter(StrUtil::isNotBlank)
+            .collect(Collectors.joining(","));
+
+    }
+
+    /**
+     * 根据二级类别获取能力
+     *
+     * @param subCategoryEnum 子类别枚举
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/06 16:03:24
+     *
+     */
+    public static String getAbilityBySubCategory(SubCategoryEnum subCategoryEnum) {
+        if (subCategoryEnum == null) {
+            return null;
+        }
+        return Arrays.stream(FileCategoryAbilityAssociation.values())
+            .filter(item -> subCategoryEnum.equals(item.getCategoryType()))
+            .map(FileCategoryAbilityAssociation::getAssociatedCapability)
+            .filter(StrUtil::isNotBlank)
+            .collect(Collectors.joining(","));
+
     }
 }

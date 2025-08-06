@@ -75,5 +75,13 @@ public enum TagHistoryCategory {
 
     }
 
+    // 根据code获取枚举
+    public static TagHistoryCategory getByCode(Integer code) {
+        return Arrays.stream(TagHistoryCategory.values())
+            .filter(item -> item.code.equals(code))
+            .findFirst()
+            .orElse(null);
+    }
+
 
 }
