@@ -63,8 +63,11 @@ public class FileObject extends BasicEntity<Long> {
     private Integer fileStatus;
 
     @ApiModelProperty(value = "所属子类")
-    private Integer subCategory;
+    private String subCategory;
 
     @ApiModelProperty(value = "知识库解析状态")
     private Integer knowledgeParseState;
+
+    @ApiModelProperty(value = "三级分类")
+    private String thirdLevelCategory;
 }

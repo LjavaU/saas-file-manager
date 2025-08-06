@@ -15,6 +15,9 @@ public class FileClassifyResp {
     @ApiModelProperty(value = "所属子类")
     private Integer subcategory;
 
+    @ApiModelProperty(value = "三级分类")
+    private Integer third_level_category;
+
     @ApiModelProperty(value = "摘要")
     private String summary;
 }

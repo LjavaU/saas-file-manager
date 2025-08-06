@@ -3,8 +3,8 @@ package com.supcon.tptrecommend.job;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.http.HttpStatus;
 import cn.hutool.json.JSONUtil;
-import com.supcon.framework.schedule.core.entity.ExecutorParam;
-import com.supcon.framework.schedule.core.handler.AbstractJobHandler;
+import com.supcon.framework.schedule.core.annotation.Job;
+import com.supcon.framework.schedule.core.enums.ScheduleTypeEnum;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.KnowledgeParseState;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
@@ -20,13 +20,17 @@ import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeParseDetails;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeRecommendationReq;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.*;
 
 /**
@@ -38,7 +42,7 @@ import java.util.concurrent.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class KnowledgeParseStatusJobHandler extends AbstractJobHandler {
+public class KnowledgeParseStatusJobHandler  {
 
     private final KnowledgeFeign knowledgeFeign;
 
@@ -50,15 +54,10 @@ public class KnowledgeParseStatusJobHandler extends AbstractJobHandler {
         35000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
         new ThreadPoolExecutor.AbortPolicy());
 
-    /**
-     * 具体执行方法
-     *
-     * @param userParam     用户参数
-     * @param executorParam 执行参数
-     */
-    @Override
-    public void execute(Map<String, Object> userParam, ExecutorParam executorParam) {
-        List<FileObjectResp> knowledgeParsing = fileObjectService.getKnowledgeParsing();
+    @XxlJob("knowledgeParseStatusJob")
+    @Job(jobDesc = "定时轮询知识库文件解析状态", scheduleType = ScheduleTypeEnum.FIX_RATE, scheduleConf = "30", alarmEmail = "")
+    public void execute() {
+        List<FileObjectResp> knowledgeParsing = fileObjectService.getKnowledgeParsing(KnowledgeParseState.GRAY.getValue());
         if (CollectionUtil.isEmpty(knowledgeParsing)) {
             return;
         }
@@ -166,20 +165,4 @@ public class KnowledgeParseStatusJobHandler extends AbstractJobHandler {
         }
     }
 
-    @Override
-    public String name() {
-        return "knowledgeParseStatusJob";
-    }
-
-    /**
-     * 处理消息发生异常时调用，默认不做任何处理
-     *
-     * @param userParam     用户参数
-     * @param executorParam 执行参数
-     * @param e             异常
-     */
-    @Override
-    public void handlerException(Map<String, Object> userParam, ExecutorParam executorParam, Exception e) {
-        log.error("任务执行异常", e);
-    }
 }

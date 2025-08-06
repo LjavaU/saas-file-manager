@@ -28,14 +28,16 @@ public enum SubCategoryEnum {
     PUMP_ANOMALY_DETECTION_DATA(13, "泵异常检测数据"),
     VALVE_ANOMALY_DETECTION_DATA(14, "阀门异常检测数据"),
     HEAT_EXCHANGER_NETWORK_DESIGN_INFO(15, "换热网络设计信息"),
-    HEAT_EXCHANGER_NETWORK_OPERATION_DATA(16, "换热网络运行数据"),
-    OPERATING_PROCEDURE_DEVICE(17, "操作规程装置"),
-    PROCESS_INDEX_COMPOSITION(18, "工艺指标组成"),
-    DCS_POINT_TABLE_FB(19, "DCS点表FB"),
-    EARLY_WARNING_PROCESS_ABNORMALITIES(20, "工艺异常预警"),
-    METRICS_BUSINESS_REPORT_DATA(21, "指标业务报表数据");
+    OPERATING_PROCEDURE_DEVICE(16, "操作规程装置"),
+    PROCESS_INDEX_COMPOSITION(17, "工艺指标组成"),
+    DCS_POINT_TABLE_FB(18, "DCS点表FB"),
+    EARLY_WARNING_PROCESS_ABNORMALITIES(19, "工艺异常预警"),
+    METRICS_BUSINESS_REPORT_DATA(20, "指标业务报表数据"),
+    EXAM_QUESTION_DATA(21, "考题资料数据"),
+    OVERALL_INFORMATION_DEVICE(22, "装置整体信息"),
+    CONDITION_INPUT(23, "限制条件输入");
 
-    private final int code;
+    private final Integer code;
     private final String description;
 
     public static String fromCode(int code) {

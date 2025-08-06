@@ -7,7 +7,6 @@ import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
 import com.supcon.tptrecommend.entity.FileObject;
-import com.supcon.tptrecommend.feign.IndexFeign;
 import com.supcon.tptrecommend.feign.entity.index.FileUploadResult;
 import com.supcon.tptrecommend.feign.entity.index.R;
 import com.supcon.tptrecommend.feign.entity.index.UploadResultItem;
@@ -21,14 +20,16 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -46,7 +47,6 @@ public class IndexDataHandle implements BusinessDataHandler {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    private final IndexFeign indexFeign;
 
     @Value("${service.index.address:localhost}")
     private String indexUrl;
@@ -56,7 +56,7 @@ public class IndexDataHandle implements BusinessDataHandler {
      * key: 租户id-文件id
      * value: 报表文件id
      */
-    private static final Map<String, String> REPORT_FILE_ID = new ConcurrentHashMap<>();
+    public static final Map<String, String> REPORT_FILE_ID = new ConcurrentHashMap<>();
 
 
     @Override
@@ -132,68 +132,4 @@ public class IndexDataHandle implements BusinessDataHandler {
     }
 
 
-    /**
-     * 每30S轮询一次
-     *
-     * @author luhao
-     * @since 2025/07/24 15:30:50
-     */
-    @Scheduled(fixedDelay = 30000)
-    public void getReportParseStatus() {
-        if (REPORT_FILE_ID.isEmpty()) {
-            return;
-        }
-        REPORT_FILE_ID.forEach((tenantFileId, reportFileId) -> {
-            String[] split = tenantFileId.split("-");
-            String tenantId = split[0];
-            Long fileId = Long.parseLong(split[1]);
-            TenantContext.setCurrentTenant(tenantId);
-            R<String> reportParsingStatus = indexFeign.getReportParsingStatus(reportFileId, String.valueOf(Optional.ofNullable(fileObjectService.getById(fileId)).map(FileObject::getUserId).orElse(1L)));
-            if (Objects.nonNull(reportParsingStatus) && reportParsingStatus.isSuccess()) {
-                String status = reportParsingStatus.getData();
-                ReportParseStatus parseStatus = ReportParseStatus.getByValue(status);
-                if (parseStatus != null) {
-                    switch (parseStatus) {
-                        case WAITING:
-                            ProcessProgressSupport.notifyParseProcessing(fileId, 40);
-                            break;
-                        case PARSING:
-                            ProcessProgressSupport.notifyParseProcessing(fileId, 55);
-                            break;
-                        case COMPLETED:
-                        case PARTIAL_COMPLETION:
-                            fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
-                            ProcessProgressSupport.notifyParseComplete(fileId);
-                            REPORT_FILE_ID.remove(tenantFileId);
-                            break;
-                        case ERROR:
-                            fileObjectService.updateFileParseStatus(fileId,FileStatus.PARSE_FAILED);
-                            ProcessProgressSupport.notifyParseComplete(fileId);
-                            REPORT_FILE_ID.remove(tenantFileId);
-                    }
-                }
-            } else {
-                log.error("查询指标系统报表解析状态失败：{}", Objects.nonNull(reportParsingStatus) ? reportParsingStatus.getMsg() : "请求失败");
-            }
-        });
-    }
-
-    /**
-     * 报表解析状态
-     *
-     * @author luhao
-     * @since 2025/07/24 14:40:50
-     */
-    enum ReportParseStatus {
-        WAITING, PARSING, COMPLETED, ERROR, PARTIAL_COMPLETION;
-
-        public static ReportParseStatus getByValue(String value) {
-            for (ReportParseStatus status : values()) {
-                if (status.name().equals(value)) {
-                    return status;
-                }
-            }
-            return null;
-        }
-    }
 }
