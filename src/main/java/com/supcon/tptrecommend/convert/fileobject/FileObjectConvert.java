@@ -13,6 +13,8 @@ import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -77,11 +79,11 @@ public interface FileObjectConvert {
     }
 
 
-    default Integer[] convert(String convert) {
+    default List<Integer> convert(String convert) {
         return Arrays.stream(convert.split(","))
             .filter(NumberUtil::isNumber)
             .map(Integer::parseInt)
-            .toArray(Integer[]::new);
+            .collect(Collectors.toList());
     }
 
 }

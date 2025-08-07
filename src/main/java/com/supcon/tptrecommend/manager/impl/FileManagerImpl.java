@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -144,24 +145,44 @@ public class FileManagerImpl implements FileManager {
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
 
-        // TODO：目前txt、PDF、doc、docx类型的文件上传到知识库
-        if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
-            uploadToKnowledgeBase(file, uniqueFilename, objectKey, fileId);
-        }
-
-        if (StrUtil.isBlank(attributes)) {
-            processFileAnalysis(file, uniqueFilename, originalFilename, fileId);
-
-        }
+        doFileProcess(file, uniqueFilename, fileId, objectKey, originalFilename);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void processFileAnalysis(MultipartFile file, String uniqueFilename, String originalFilename, Long fileId) {
+    private void doFileProcess(MultipartFile file, String uniqueFilename, Long fileId, String objectKey, String originalFilename) {
+        // 确保目录存在
+        Path uploadPath = Paths.get(uploadDir);
+        try {
+            ensureUploadDirectoryExists(uploadPath);
+            Path filePath = uploadPath.resolve(uniqueFilename);
+            // 使用 transferTo 高效地将文件保存到磁盘
+            file.transferTo(filePath.toFile());
+            if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
+                Path knoUploadPath = Paths.get(knoUploadDir);
+                ensureUploadDirectoryExists(knoUploadPath);
+                Path knoFilePath = knoUploadPath.resolve(uniqueFilename);
+                // 拷贝文件到知识库目录
+                Files.copy(filePath, knoFilePath, StandardCopyOption.REPLACE_EXISTING);
+                uploadToKnowledgeBase(knoFilePath.toString(), objectKey, fileId);
+            }
+            processFileAnalysis(filePath.toString(), originalFilename, fileId);
+
+        } catch (IOException e) {
+            log.error("上传的文件：{}，临时保存失败", uniqueFilename, e);
+
+        }
+    }
+
+    private void ensureUploadDirectoryExists(Path uploadPath) throws IOException {
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+    }
+
+    private void processFileAnalysis(String filePath, String originalFilename, Long fileId) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
-            // 把上传的文件临时保存
-            String filePath = saveFileTemporary(file, uniqueFilename, uploadDir);
             if (Objects.isNull(filePath)) {
                 markFileAsParseFailed(fileId);
                 return;
@@ -176,23 +197,23 @@ public class FileManagerImpl implements FileManager {
             });
         } else {
             log.error("文件：{},不支持解析", originalFilename);
+            // TODO：找不到文件处理器列如PDF，目前只删除临时文件，根据知识库的结果判定最终状态
+            deleteTemporaryFile(filePath);
         }
     }
 
     /**
      * 上传到知识库
      *
-     * @param file           文件
-     * @param uniqueFilename 唯一文件名
-     * @param objectKey      对象键名
-     * @param fileId         文件 ID
+     * @param knoFilePath 知识库文件路径
+     * @param objectKey   对象键名
+     * @param fileId      文件 ID
      * @author luhao
      * @since 2025/07/30 14:13:50
      *
      *
      */
-    private void uploadToKnowledgeBase(MultipartFile file, String uniqueFilename, String objectKey, Long fileId) {
-        String knoFilePath = saveFileTemporary(file, uniqueFilename, knoUploadDir);
+    private void uploadToKnowledgeBase(String knoFilePath, String objectKey, Long fileId) {
         CompletableFuture.runAsync(TtlRunnable.get(() -> {
             KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(knoFilePath, objectKey, fileId);
             if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
@@ -299,33 +320,6 @@ public class FileManagerImpl implements FileManager {
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 
-    /**
-     * 临时保存文件
-     *
-     * @param file           文件
-     * @param uniqueFilename （唯一文件名）
-     * @return {@link String }
-     * @author luhao
-     * @since 2025/06/19 10:17:59
-     */
-    private String saveFileTemporary(MultipartFile file, String uniqueFilename, String uploadDir) {
-        // 确保目录存在
-        Path uploadPath = Paths.get(uploadDir);
-        try {
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-            Path filePath = uploadPath.resolve(uniqueFilename);
-            // 使用 transferTo 高效地将文件保存到磁盘
-            file.transferTo(filePath.toFile());
-            log.info("上传的文件已临时保存至: {}", filePath);
-            return filePath.toString();
-        } catch (IOException e) {
-            log.error("上传的文件：{}，临时保存失败", uniqueFilename, e);
-            return null;
-        }
-
-    }
 
     /**
      * 上传到 MiniO
@@ -642,7 +636,10 @@ public class FileManagerImpl implements FileManager {
         node.setName(relativePath.substring(relativePath.indexOf("_") + 1));
         node.setPath(objectName);
         node.setCategory(FileObjectConvert.INSTANCE.mapCategory(fileObject));
-        node.setAbility(fileObject.getAbility());
+        String ability = fileObject.getAbility();
+        if(StrUtil.isNotBlank(ability)) {
+            node.setAbility(FileCategoryAbilityAssociation.getAbilityDescriptionByAbility(Arrays.asList(ability.split(","))));
+        }
         node.setContentOverview(fileObject.getContentOverview());
         node.setFileStatus(fileObject.getFileStatus());
         node.setSize(FileUtils.formatFileSize(fileObject.getFileSize()));
@@ -718,20 +715,19 @@ public class FileManagerImpl implements FileManager {
             // 获取类别的三级分类
             TagHistoryCategory thirdCategoryType = abilityAssociation.getTagHistoryCategory();
             LambdaUpdateWrapper<FileObject> lambdaUpdate = Wrappers.lambdaUpdate();
-            String subCategory = mergeUpdatedProperties(String.valueOf(categoryType.getCode()), fileObject.getSubCategory());
-            if (Objects.nonNull(subCategory)) {
-                lambdaUpdate.set(FileObject::getSubCategory, subCategory);
 
-            }
-            String thirdCategory = mergeUpdatedProperties(String.valueOf(thirdCategoryType.getCode()), fileObject.getThirdLevelCategory());
-            if (Objects.nonNull(thirdCategory)) {
-                lambdaUpdate.set(FileObject::getThirdLevelCategory, thirdCategory);
-            }
+            // 更新二级分类
+            Optional.ofNullable(categoryType)
+                .map(type -> mergeUpdatedProperties(String.valueOf(type.getCode()), fileObject.getSubCategory()))
+                .ifPresent(subcategory -> lambdaUpdate.set(FileObject::getSubCategory, subcategory));
+            //更新三级分类
+            Optional.ofNullable(thirdCategoryType)
+                .map(type -> mergeUpdatedProperties(String.valueOf(type.getCode()), fileObject.getThirdLevelCategory()))
+                .ifPresent(thirdCategory -> lambdaUpdate.set(FileObject::getThirdLevelCategory, thirdCategory));
             fileObjectService.update(new FileObject(), lambdaUpdate
                 .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
                 .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
         }
-
         String updateAbility = mergeUpdatedProperties(ability, fileObject.getAbility());
         if (Objects.nonNull(updateAbility)) {
             fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
