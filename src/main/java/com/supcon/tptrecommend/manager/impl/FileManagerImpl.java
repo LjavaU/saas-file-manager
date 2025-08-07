@@ -1,5 +1,6 @@
 package com.supcon.tptrecommend.manager.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
@@ -610,6 +611,9 @@ public class FileManagerImpl implements FileManager {
 
     private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
         List<Long> fileIds = fileObjects.stream().map(FileObject::getId).collect(Collectors.toList());
+        if (CollUtil.isEmpty(fileIds)) {
+            return Collections.emptyMap();
+        }
         List<FileRecommendation> recommendations = fileRecommendationService.list(Wrappers.<FileRecommendation>lambdaQuery().in(FileRecommendation::getFileId, fileIds));
         return recommendations.stream()
             .filter(fileRecommendation -> StrUtil.isNotBlank(fileRecommendation.getQuestions()))

@@ -68,8 +68,5 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
         fileObjectMapper.updateKnowledgeParseState(fileObject);
     }
 
-    @Override
-    public List<FileObjectResp> getIndexFile(int subCategory) {
-        return fileObjectMapper.getIndexFile(subCategory);
-    }
+
 }
