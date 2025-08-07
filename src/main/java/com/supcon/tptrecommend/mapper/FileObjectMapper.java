@@ -48,16 +48,5 @@ public interface FileObjectMapper extends IBaseMapper<FileObject> {
         "  AND tenant_id = #{tenantId} ;")
     void updateKnowledgeParseState(FileObject fileObject);
 
-    /**
-     * 获取类别为指标报表且为解析的文件
-     *
-     * @param subCategory 子类别
-     * @return {@link List }<{@link FileObjectResp }>
-     * @author luhao
-     * @since 2025/08/05 14:35:12
-     *
-     */
-    @InterceptorIgnore(tenantLine = "true")
-    @Select("select id,user_id,tenant_id,bucket_name,object_name from file_object where sub_category = #{subCategory} and file_status = 0 ")
-    List<FileObjectResp> getIndexFile(int subCategory);
+
 }

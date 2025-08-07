@@ -53,6 +53,9 @@ public enum SubCategoryEnum {
     }
     // 根据code获取枚举
     public static SubCategoryEnum getByCode(Integer code) {
+        if (code == null) {
+            return null;
+        }
         return Arrays.stream(SubCategoryEnum.values())
             .filter(item -> item.code.equals(code))
             .findFirst()

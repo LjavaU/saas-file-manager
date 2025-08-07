@@ -59,5 +59,4 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      */
     void updateKnowledgeParseState(FileObject fileObject);
 
-    List<FileObjectResp> getIndexFile(int subCategory);
 }

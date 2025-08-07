@@ -83,6 +83,7 @@ public class KnowledgeParseStatusJobHandler  {
                                 ProcessProgressSupport.notifyParseComplete(fileObjectResp.getId());
 
                             } else {
+                                fileObject.setFileStatus(FileStatus.UNPARSED.getValue());
                                 ProcessProgressSupport.notifyParseProcessing(fileObjectResp.getId(),50);
                             }
                             // 更新状态
