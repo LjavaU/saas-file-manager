@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -61,15 +62,16 @@ public enum TagHistoryCategory {
     /**
      * 根据code获取类别
      *
-     * @param code 法典
+     * @param codes 编码
      * @return {@link String }
      * @author luhao
      * @since 2025/08/06 13:26:26
      *
+     *
      */
-    public static String getCategoryByCode(Integer... code) {
+    public static String getCategoryByCode(List<Integer> codes) {
             return Arrays.stream(TagHistoryCategory.values())
-                .filter(item -> Arrays.asList(code).contains(item.code))
+                .filter(item -> codes.contains(item.code))
                 .map(TagHistoryCategory::getCategory)
                 .collect(Collectors.joining(","));
 

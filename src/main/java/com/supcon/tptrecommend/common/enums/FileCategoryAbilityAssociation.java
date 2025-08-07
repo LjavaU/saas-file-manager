@@ -112,15 +112,16 @@ public enum FileCategoryAbilityAssociation {
     /**
      * 根据类别code获取类别名
      *
-     * @param code 编码
+     * @param codes 二级分类编码
      * @return {@link String }
      * @author luhao
      * @since 2025/08/06 11:01:26
      *
+     *
      */
-    public static String getCategoryNameBySubCategoryCode(Integer... code) {
+    public static String getCategoryNameBySubCategoryCode(List<Integer> codes) {
         List<SubCategoryEnum> subCategoryEnums = Arrays.stream(SubCategoryEnum.values())
-            .filter(item -> Arrays.asList(code).contains(item.getCode()))
+            .filter(item ->codes.contains(item.getCode()))
             .collect(Collectors.toList());
         return Arrays.stream(FileCategoryAbilityAssociation.values())
             .filter(item -> subCategoryEnums.contains(item.getCategoryType()))
@@ -131,15 +132,16 @@ public enum FileCategoryAbilityAssociation {
     /**
      * 根据类别code获取类别标识
      *
-     * @param code 法典
+     * @param codes 二级分类编码
      * @return {@link String }
      * @author luhao
      * @since 2025/08/06 15:22:02
      *
+     *
      */
-    public static String getCategoryIdentifierBySubCategoryCode(Integer... code) {
+    public static String getCategoryIdentifierBySubCategoryCode(List<Integer> codes) {
         List<SubCategoryEnum> subCategoryEnums = Arrays.stream(SubCategoryEnum.values())
-            .filter(item -> Arrays.asList(code).contains(item.getCode()))
+            .filter(item -> codes.contains(item.getCode()))
             .collect(Collectors.toList());
         return Arrays.stream(FileCategoryAbilityAssociation.values())
             .filter(item -> subCategoryEnums.contains(item.getCategoryType()))
@@ -151,15 +153,16 @@ public enum FileCategoryAbilityAssociation {
     /**
      * 根据三级类别code获取类别标识
      *
-     * @param code 法典
+     * @param codes 三级分类编码
      * @return {@link String }
      * @author luhao
      * @since 2025/08/06 15:32:06
      *
+     *
      */
-    public static String getCategoryIdentifierByTagHistoryCode(Integer... code) {
+    public static String getCategoryIdentifierByTagHistoryCode(List<Integer> codes) {
         List<TagHistoryCategory> tagHistoryCategoryEnums = Arrays.stream(TagHistoryCategory.values())
-            .filter(item -> Arrays.asList(code).contains(item.getCode()))
+            .filter(item -> codes.contains(item.getCode()))
             .collect(Collectors.toList());
         return Arrays.stream(FileCategoryAbilityAssociation.values())
             .filter(item -> tagHistoryCategoryEnums.contains(item.getTagHistoryCategory()))
@@ -206,6 +209,24 @@ public enum FileCategoryAbilityAssociation {
         return Arrays.stream(FileCategoryAbilityAssociation.values())
             .filter(item -> subCategoryEnum.equals(item.getCategoryType()))
             .map(FileCategoryAbilityAssociation::getAssociatedCapability)
+            .filter(StrUtil::isNotBlank)
+            .collect(Collectors.joining(","));
+
+    }
+
+    /**
+     * 根据能力获取能力描述
+     *
+     * @param abilities 能力
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/07 10:33:37
+     *
+     */
+    public static String getAbilityDescriptionByAbility(List<String> abilities) {
+        return Arrays.stream(FileCategoryAbilityAssociation.values())
+            .filter(item -> abilities.contains(item.getAssociatedCapability()))
+            .map(FileCategoryAbilityAssociation::getCapabilityDescription)
             .filter(StrUtil::isNotBlank)
             .collect(Collectors.joining(","));
 
