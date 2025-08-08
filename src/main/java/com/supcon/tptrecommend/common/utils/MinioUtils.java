@@ -14,9 +14,13 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -54,6 +58,8 @@ public class MinioUtils {
 
     private MinioClient minioClient;
 
+    @Value("${file.temp-dir:D:/temp/uploads}")
+    private String tempDir;
 
     @PostConstruct
     public void initClient() {
@@ -300,7 +306,7 @@ public class MinioUtils {
      * @author luhao
      * @date 2025/05/29 16:16:21
      */
-    public InputStream getFileBytes(String bucketName, String objectName) {
+    public InputStream getFileInputStream(String bucketName, String objectName) {
         try {
             return minioClient.getObject(
                 GetObjectArgs.builder()
@@ -405,5 +411,38 @@ public class MinioUtils {
             }
         }
         return count;
+    }
+
+    /**
+     * 从 MinIO 高效地下载文件并保存到本地临时目录。
+     *
+     * @param bucketName     桶 名称
+     * @param objectName     对象（文件）名称
+     * @param uniqueFilename 唯一文件名
+     * @return {@link File }
+     * @author luhao
+     * @since 2025/08/08 13:57:04
+     *
+     */
+    public File saveStreamToTempFile(String bucketName, String objectName,String uniqueFilename) {
+        // 1. 构建完整的目标文件路径
+        Path destinationPath = Paths.get(tempDir, uniqueFilename);
+        Path parentDir = destinationPath.getParent();
+        // 2. 确保父目录存在，如果不存在则创建
+        if (Files.notExists(parentDir)) {
+            try {
+                Files.createDirectories(parentDir);
+            } catch (IOException e) {
+               log.error("创建目录失败: ", e);
+               return null;
+            }
+        }
+        try (InputStream stream = getFileInputStream(bucketName, objectName)) {
+            Files.copy(stream, destinationPath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (Exception e) {
+            log.error("从 MinIO 获取对象时发生异常", e);
+            return null;
+        }
+        return destinationPath.toFile();
     }
 }

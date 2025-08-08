@@ -1,7 +1,6 @@
 package com.supcon.tptrecommend.manager.impl;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
@@ -19,13 +18,15 @@ import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.enums.*;
-import com.supcon.tptrecommend.common.utils.*;
+import com.supcon.tptrecommend.common.utils.FileUtils;
+import com.supcon.tptrecommend.common.utils.LoginUserUtils;
+import com.supcon.tptrecommend.common.utils.MinioUtils;
+import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.entity.FileRecommendation;
 import com.supcon.tptrecommend.feign.KnowledgeFeign;
-import com.supcon.tptrecommend.feign.entity.knowledge.FileDataSimple;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
@@ -39,26 +40,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -72,15 +61,6 @@ public class FileManagerImpl implements FileManager {
     @Value("${minio.bucket}")
     private String bucket;
 
-    @Value("${file.upload-dir:D:/temp/uploads}")
-    private String uploadDir;
-
-    @Value("${file.kno-upload-dir:D:/temp/uploads/kno}")
-    private String knoUploadDir;
-
-    @Value("${service.knowledge.address:localhost}")
-    private String knowledgeUploadUrl;
-
     public static final String FILE_SPLIT = "/";
 
     private final MinioUtils minioUtils;
@@ -91,8 +71,6 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileRecommendationService fileRecommendationService;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-
     /**
      * 用于处理IO密集型任务
      * 核心线程为：CPU核心是*3
@@ -101,15 +79,6 @@ public class FileManagerImpl implements FileManager {
     private final Executor EXECUTOR = new ThreadPoolExecutor(6, 12,
         1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
         new ThreadPoolExecutor.AbortPolicy());
-
-
-    /**
-     * 知识库解析线程池
-     */
-    private final Executor KNOWLEDGE_EXECUTOR = new ThreadPoolExecutor(4, 8,
-        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
-        new ThreadPoolExecutor.AbortPolicy());
-
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
@@ -146,51 +115,17 @@ public class FileManagerImpl implements FileManager {
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
 
-        doFileProcess(file, uniqueFilename, fileId, objectKey, originalFilename);
+        doFileProcess(fileId, originalFilename);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void doFileProcess(MultipartFile file, String uniqueFilename, Long fileId, String objectKey, String originalFilename) {
-        // 确保目录存在
-        Path uploadPath = Paths.get(uploadDir);
-        try {
-            ensureUploadDirectoryExists(uploadPath);
-            Path filePath = uploadPath.resolve(uniqueFilename);
-            // 使用 transferTo 高效地将文件保存到磁盘
-            file.transferTo(filePath.toFile());
-            if (FileUtils.isKnowledgeDocumentFile(originalFilename)) {
-                Path knoUploadPath = Paths.get(knoUploadDir);
-                ensureUploadDirectoryExists(knoUploadPath);
-                Path knoFilePath = knoUploadPath.resolve(uniqueFilename);
-                // 拷贝文件到知识库目录
-                Files.copy(filePath, knoFilePath, StandardCopyOption.REPLACE_EXISTING);
-                uploadToKnowledgeBase(knoFilePath.toString(), objectKey, fileId);
-            }
-            processFileAnalysis(filePath.toString(), originalFilename, fileId);
-
-        } catch (IOException e) {
-            log.error("上传的文件：{}，临时保存失败", uniqueFilename, e);
-
-        }
-    }
-
-    private void ensureUploadDirectoryExists(Path uploadPath) throws IOException {
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-    }
-
-    private void processFileAnalysis(String filePath, String originalFilename, Long fileId) {
+    private void doFileProcess(Long fileId, String originalFilename) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
-            if (Objects.isNull(filePath)) {
-                markFileAsParseFailed(fileId);
-                return;
-            }
             FileAnalysisHandle fileAnalysisHandle = handler.get();
             CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                fileAnalysisHandle.handleFileAnalysis(filePath, fileId);
+                fileAnalysisHandle.handleFileAnalysis(fileId);
             }), EXECUTOR).exceptionally(throwable -> {
                 log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                 markFileAsParseFailed(fileId);
@@ -198,126 +133,19 @@ public class FileManagerImpl implements FileManager {
             });
         } else {
             log.error("文件：{},不支持解析", originalFilename);
-            // TODO：找不到文件处理器列如PDF，目前只删除临时文件，根据知识库的结果判定最终状态
-            deleteTemporaryFile(filePath);
-        }
-    }
-
-    /**
-     * 上传到知识库
-     *
-     * @param knoFilePath 知识库文件路径
-     * @param objectKey   对象键名
-     * @param fileId      文件 ID
-     * @author luhao
-     * @since 2025/07/30 14:13:50
-     *
-     *
-     */
-    private void uploadToKnowledgeBase(String knoFilePath, String objectKey, Long fileId) {
-        CompletableFuture.runAsync(TtlRunnable.get(() -> {
-            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(knoFilePath, objectKey, fileId);
-            if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
-                // 通知解析进度
-                ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
-                FileDataSimple fileDataSimple = resp.getData().get(0);
-                List<String> keyWords = fileDataSimple.getKey_words();
-                // 保存文件关键词到文件推荐表中
-                saveFileKeywordsToRecommendation(fileId, keyWords);
-                // 更新文件解析状态
-                updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
-            } else {
-                log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
-                markKnowledgeFileAsParseFailed(fileId);
-            }
-            deleteTemporaryFile(knoFilePath);
-        }), KNOWLEDGE_EXECUTOR).exceptionally(throwable -> {
-            log.error("上传文件到知识库失败", throwable);
-            markKnowledgeFileAsParseFailed(fileId);
-            deleteTemporaryFile(knoFilePath);
-            return null;
-        });
-
-
-    }
-
-    private void deleteTemporaryFile(String filePath) {
-        try {
-            Files.deleteIfExists(Paths.get(filePath));
-        } catch (IOException e) {
-            log.error("删除临时文件失败: {}", filePath, e);
-        }
-    }
-
-    private KnowledgeFileUploadResp<List<FileDataSimple>> uploadFileUploadToKnowledge(String filePath, String objectKey, Long fileId) {
-        String url = knowledgeUploadUrl + "/api/industry_domain_qa/saas/new/upload_files";
-        // 1. 设置请求头
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
-        // 2. 创建 MultiValueMap 来构建请求体
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-
-        // 3. 将 File 包装成 FileSystemResource
-        body.add("files", new FileSystemResource(new File(filePath)));
-        body.add("user_id", LoginUserUtils.getLoginUserInfo().getId());
-        body.add("bucket", bucket);
-        body.add("object", objectKey);
-        body.add("tenant_id", TenantContext.getCurrentTenant());
-
-        // 4. 将请求头和请求体封装到 HttpEntity 中
-        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-
-        ParameterizedTypeReference<KnowledgeFileUploadResp<List<FileDataSimple>>> responseType =
-            new ParameterizedTypeReference<KnowledgeFileUploadResp<List<FileDataSimple>>>() {
-            };
-
-        ResponseEntity<KnowledgeFileUploadResp<List<FileDataSimple>>> responseEntity = restTemplate.exchange(
-            url,
-            HttpMethod.POST,
-            requestEntity,
-            responseType
-        );
-        if (responseEntity.getStatusCode().is2xxSuccessful()) {
-            return responseEntity.getBody();
-        }
-        return null;
-    }
-
-    private void updateKnowledgeParseState(Long fileId, String status) {
-        FileObject fileObject = new FileObject();
-        fileObject.setKnowledgeParseState(KnowledgeParseState.valueByDesc(status));
-        fileObject.setId(fileId);
-        fileObjectService.updateById(fileObject);
-    }
-
-    private void saveFileKeywordsToRecommendation(Long fileId, List<String> keyWords) {
-        if (CollectionUtil.isNotEmpty(keyWords)) {
-            FileRecommendation fileRecommendation = new FileRecommendation();
-            fileRecommendation.setFileId(fileId);
-            fileRecommendation.setKeyword(String.join(",", keyWords));
-            fileRecommendationService.save(fileRecommendation);
         }
     }
 
 
-    private void updateFileStatusParseFailed(Long fileId, KnowledgeParseState parseState) {
+    private void updateFileStatusParseFailed(Long fileId) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
-        if (Objects.nonNull(parseState)) {
-            fileObject.setKnowledgeParseState(parseState.getValue());
-        }
         fileObjectService.updateById(fileObject);
     }
 
     private void markFileAsParseFailed(Long fileId) {
-        updateFileStatusParseFailed(fileId, null);
-        ProcessProgressSupport.notifyParseComplete(fileId);
-    }
-
-    private void markKnowledgeFileAsParseFailed(Long fileId) {
-        updateFileStatusParseFailed(fileId, KnowledgeParseState.RED);
+        updateFileStatusParseFailed(fileId);
         ProcessProgressSupport.notifyParseComplete(fileId);
     }
 
@@ -469,7 +297,7 @@ public class FileManagerImpl implements FileManager {
             response.setHeader("Content-disposition", "attachment;filename*=UTF-8''" + encodedFileName);
 
             //  获取来自MinIO的实时文件流，并直接写入响应
-            try (InputStream inputStream = minioUtils.getFileBytes(bucket, path)) {
+            try (InputStream inputStream = minioUtils.getFileInputStream(bucket, path)) {
                 IOUtils.copy(inputStream, response.getOutputStream());
             }
             response.flushBuffer();
@@ -641,7 +469,7 @@ public class FileManagerImpl implements FileManager {
         node.setPath(objectName);
         node.setCategory(FileObjectConvert.INSTANCE.mapCategory(fileObject));
         String ability = fileObject.getAbility();
-        if(StrUtil.isNotBlank(ability)) {
+        if (StrUtil.isNotBlank(ability)) {
             node.setAbility(FileCategoryAbilityAssociation.getAbilityDescriptionByAbility(Arrays.asList(ability.split(","))));
         }
         node.setContentOverview(fileObject.getContentOverview());

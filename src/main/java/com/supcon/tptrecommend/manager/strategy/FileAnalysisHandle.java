@@ -15,10 +15,9 @@ public interface FileAnalysisHandle {
     /**
      * 处理文件分析
      *
-     * @param filePath 文件路径
      * @param fileId   文件 ID
      * @author luhao
      * @since 2025/06/18 20:05:43
      */
-    void handleFileAnalysis(String filePath, Long fileId);
+    void handleFileAnalysis(Long fileId);
 }

@@ -15,9 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * 指标文件解析状态任务
@@ -39,6 +37,7 @@ public class IndexParseStatusJobHandle {
     @Job(jobDesc = "定时轮询指标文件解析状态", scheduleType = ScheduleTypeEnum.FIX_RATE, scheduleConf = "30", alarmEmail = "")
     public void execute() {
         Map<String, String> reportFileMap = IndexDataHandle.REPORT_FILE_ID;
+        List<String> keysToRemove = new ArrayList<>();
         reportFileMap.forEach((tenantFileId, reportFileId) -> {
                 String[] split = tenantFileId.split("-");
                 String tenantId = split[0];
@@ -59,15 +58,13 @@ public class IndexParseStatusJobHandle {
                             case COMPLETED:
                             case PARTIAL_COMPLETION:
                                 fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
-                                fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
+                                keysToRemove.add(tenantFileId);
                                 ProcessProgressSupport.notifyParseComplete(fileId);
-                                reportFileMap.remove(tenantFileId);
                                 break;
                             case ERROR:
                                 fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSE_FAILED);
-                                fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSE_FAILED);
+                                keysToRemove.add(tenantFileId);
                                 ProcessProgressSupport.notifyParseComplete(fileId);
-                                reportFileMap.remove(tenantFileId);
                         }
                     }
 
@@ -77,6 +74,7 @@ public class IndexParseStatusJobHandle {
                 TenantContext.clear();
             }
         );
+        keysToRemove.forEach(reportFileMap::remove);
     }
 
     /**

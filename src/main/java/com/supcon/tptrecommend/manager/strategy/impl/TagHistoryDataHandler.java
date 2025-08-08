@@ -6,8 +6,6 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.alibaba.excel.read.metadata.holder.ReadRowHolder;
-import com.supcon.systemcommon.entity.SupRequestBody;
-import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
@@ -56,10 +54,10 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
     @Override
     public void batchSave(List<Object> dataList) {
         List<TagValueDTO> tagValueDTOS = castTargetObject(dataList, TagValueDTO.class);
-        SupResult<Boolean> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
+       /* SupResult<Boolean> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
         if (!supResult.getSuccess()) {
             log.error("位号历史数据保存失败：{}", supResult.getMsg());
-        }
+        }*/
     }
 
     @Override
