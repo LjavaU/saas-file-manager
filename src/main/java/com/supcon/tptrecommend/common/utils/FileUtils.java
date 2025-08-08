@@ -1,5 +1,6 @@
 package com.supcon.tptrecommend.common.utils;
 
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.mozilla.universalchardet.UniversalDetector;
 
@@ -8,6 +9,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.DecimalFormat;
 
 
@@ -126,6 +128,33 @@ public class FileUtils {
         }
         return originalFilename.endsWith(".txt") || originalFilename.endsWith(".doc") ||
             originalFilename.endsWith(".docx") || originalFilename.endsWith(".pdf");
+    }
+
+    /**
+     * 从对象名称获取文件名
+     *
+     * @param objectName 对象名称
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/08 14:34:30
+     *
+     */
+    public static String getFileNameFromObjectName(String objectName) {
+        if (StrUtil.isBlank(objectName)) {
+            return null;
+        }
+        return objectName.substring(objectName.lastIndexOf("/") + 1);
+    }
+
+    public static void deleteTemporaryFile(File file, String originalFilename) {
+        if (file == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException e) {
+            log.error("删除临时{}文件失败:", originalFilename, e);
+        }
     }
 }
 

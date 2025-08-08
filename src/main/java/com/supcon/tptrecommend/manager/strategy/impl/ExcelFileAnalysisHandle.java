@@ -8,10 +8,7 @@ import com.alibaba.excel.support.ExcelTypeEnum;
 import com.google.common.collect.Sets;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.tptrecommend.common.enums.*;
-import com.supcon.tptrecommend.common.utils.FileUtils;
-import com.supcon.tptrecommend.common.utils.MarkdownConverter;
-import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
-import com.supcon.tptrecommend.common.utils.RandomUtil;
+import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.filedata.DynamicMapper;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.LlmFeign;
@@ -31,45 +28,49 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ExcelFileAnalysishandle implements FileAnalysisHandle {
+public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
     private final IFileObjectService fileObjectService;
     private final LlmFeign llmFeign;
-    public static final Set<Long> STOP_SIGNAL_CACHE = Sets.newConcurrentHashSet();
     private final BusinessDataHandlerFactory businessDataHandlerFactory;
     private final MapperFactory mapperFactory;
+
+    private final MinioUtils minioUtils;
 
     /**
      * 处理文件分析
      *
-     * @param filePath 文件路径
-     * @param fileId   文件 ID
+     * @param fileId 文件 ID
      * @author luhao
      * @since 2025/06/18 20:06:18
      */
     @Override
-    public void handleFileAnalysis(String filePath, Long fileId) {
+    public void handleFileAnalysis(Long fileId) {
         // 通知解析进程【文件上传成功】
         ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(5, 10));
         FileObject fileObject = fileObjectService.getById(fileId);
-        String originalFilename = fileObject.getOriginalName();
+        if (Objects.isNull(fileObject)) {
+            log.error("文件不存在，解析任务终止");
+            return;
+        }
+
         if (FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
+            String originalFilename = fileObject.getOriginalName();
+            String objectName = fileObject.getObjectName();
+            String uniqueFilename = FileUtils.getFileNameFromObjectName(objectName);
+            File file = null;
             try {
-                File file = new File(filePath);
+                file = minioUtils.saveStreamToTempFile(fileObject.getBucketName(), objectName, uniqueFilename);
+                if (file == null) {
+                    throw new ServerException("临时文件" + originalFilename + "保存失败");
+                }
                 doHandle(file, fileId, originalFilename);
             } finally {
-                try {
-                    Files.deleteIfExists(Paths.get(filePath));
-                } catch (IOException e) {
-                    log.error("删除临时{}文件失败:", originalFilename, e);
-                }
+                FileUtils.deleteTemporaryFile(file, originalFilename);
             }
 
         }
