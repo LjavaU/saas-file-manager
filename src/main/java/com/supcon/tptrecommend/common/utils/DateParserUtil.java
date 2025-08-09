@@ -57,7 +57,6 @@ public class DateParserUtil {
             // 直接使用这个万能解析器进行解析
             return LocalDateTime.parse(dateString, FLEXIBLE_FORMATTER);
         } catch (DateTimeParseException e) {
-            log.error("无法解析日期字符串: {}", dateString);
             return null;
         }
     }

@@ -50,8 +50,8 @@ public class KnowledgeParseStatusJobHandler  {
 
     private final IFileRecommendationService fileRecommendationService;
 
-    private final Executor JOB_EXECUTOR = new ThreadPoolExecutor(4, 8,
-        35000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
+    private final Executor JOB_EXECUTOR = new ThreadPoolExecutor(20, 40,
+        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
     @XxlJob("knowledgeParseStatusJob")

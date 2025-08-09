@@ -50,8 +50,8 @@ public class KnowledgeFileHandleTemplate {
     /**
      * 知识库解析线程池
      */
-    private final Executor KNOWLEDGE_EXECUTOR = new ThreadPoolExecutor(4, 8,
-        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
+    private final Executor KNOWLEDGE_EXECUTOR = new ThreadPoolExecutor(20, 40,
+        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
     /**

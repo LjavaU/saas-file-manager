@@ -73,11 +73,11 @@ public class FileManagerImpl implements FileManager {
 
     /**
      * 用于处理IO密集型任务
-     * 核心线程为：CPU核心是*3
+     * 核心线程为：CPU核心是*2
      * 为了保证服务的可用性，如果队列已满，则丢弃解析任务
      */
-    private final Executor EXECUTOR = new ThreadPoolExecutor(6, 12,
-        1000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(30),
+    private final Executor EXECUTOR = new ThreadPoolExecutor(20, 40,
+        60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
         new ThreadPoolExecutor.AbortPolicy());
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
@@ -124,13 +124,18 @@ public class FileManagerImpl implements FileManager {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
             FileAnalysisHandle fileAnalysisHandle = handler.get();
-            CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                fileAnalysisHandle.handleFileAnalysis(fileId);
-            }), EXECUTOR).exceptionally(throwable -> {
-                log.error("文件：{},在处理过程中失败", originalFilename, throwable);
+            try {
+                CompletableFuture.runAsync(TtlRunnable.get(() -> {
+                    fileAnalysisHandle.handleFileAnalysis(fileId);
+                }), EXECUTOR).exceptionally(throwable -> {
+                    log.error("文件：{},在处理过程中失败", originalFilename, throwable);
+                    markFileAsParseFailed(fileId);
+                    return null;
+                });
+            } catch (RejectedExecutionException e) {
+                log.error("文件解析已经达到负载，拒绝执行");
                 markFileAsParseFailed(fileId);
-                return null;
-            });
+            }
         } else {
             log.error("文件：{},不支持解析", originalFilename);
         }
