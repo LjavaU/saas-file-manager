@@ -40,25 +40,25 @@ public enum FileCategoryAbilityAssociation {
     EARLY_WARNING_PROCESS_ABNORMALITIES_DEFAULT(EARLY_WARNING_PROCESS_ABNORMALITIES, null, null, "工艺异常预警", null, null),
 
     // --- 具有详细能力的类别 ---
-    F_LOOP_CONFIG_BATCH_PRE_TUNING(LOOP_CONFIGURATION, null, "f_loop_config", "回路组态", "batch_pre_tuning", "开车前回路参数批量整定"),
+    F_LOOP_CONFIG_BATCH_PRE_TUNING(LOOP_CONFIGURATION, null, "f_loop_config", "回路组态", "batch_pre_tuning", "开车阶段参数批量整定"),
 
     F_LOOP_HISTORY_IMC_TUNING(TAG_HISTORICAL_DATA, CIRCUIT_HISTORY_DATA, "f_loop_history", "回路历史数据", "imc_tuning", "基于历史数据的参数整定/基于历史数据的回路整定/IMC整定"),
-    F_LOOP_HISTORY_GUIDE_TUNING(TAG_HISTORICAL_DATA, CIRCUIT_HISTORY_DATA, "f_loop_history", "回路历史数据", "guide_tuning", "智能向导整定/方案确认自动寻优"),
-    F_LOOP_HISTORY_DATA_VALIDATION(TAG_HISTORICAL_DATA, CIRCUIT_HISTORY_DATA, "f_loop_history", "回路历史数据", "data_validation", "回路数据初筛/数据校验"),
+    F_LOOP_HISTORY_GUIDE_TUNING(TAG_HISTORICAL_DATA, CIRCUIT_HISTORY_DATA, "f_loop_history", "回路历史数据", "guide_tuning", "智能向导整定/多策略自适应整定"),
+    F_LOOP_HISTORY_DATA_VALIDATION(TAG_HISTORICAL_DATA, CIRCUIT_HISTORY_DATA, "f_loop_history", "回路历史数据", "data_validation", "回路数据校验/数据校验"),
 
-    F_TAG_HISTORY_DATA_GET_AUTO_IDENTIFICATION_ADD(TAG_HISTORICAL_DATA, TAG_HISTORY_DATA, "f_tag_history_data", "位号历史数据", "get_auto_identification_add", "上传数据后校验"),
-    F_VARIABLE_HISTORY_DATA_GET_CONTROL_SCHEME_GENERATION(TAG_HISTORICAL_DATA, VARIABLE_HISTORY_DATA, "f_variable_history_data", "变量历史数据", "get_control_scheme_generation", "数据处理与质量判断/转换质量分析"),
-    OPT_HISTORY_DATA_OPT_OFFLINE_FILE_UPLOAD(TAG_HISTORICAL_DATA, OPTIMIZATION_HISTORY_DATA, "opt_history_data", "优化历史数据", "opt_offline_file_upload", "PID数据处理与质量判断/PID数据质量分析"),
-    ALARM_PREDICTION_HISTORY_DATA_AAL_OFFLINE_FILE_UPLOAD(TAG_HISTORICAL_DATA, ALARM_PREDICTION_HISTORY_DATA, "alarm_prediction_history_data", "预警预测历史数据", "aal_offline_file_upload", "建模数据上传"),
-    HEN_REDESIGN_HISTORY_INFO_CHECK(TAG_HISTORICAL_DATA, HEAT_EXCHANGER_NETWORK_OPERATION_INFO, "hen_redesign_history", "换热网络运行信息", "info_check", "上传数据后校验"),
-    F_SPC_DATA_SPC_CSV_UPLOAD(TAG_HISTORICAL_DATA, TAG_DATA_FILE, "f_spc_data", "位号数据文件", "spc_csv_upload", "数据处理与质量判断/转换质量分析"),
+    F_TAG_HISTORY_DATA_GET_AUTO_IDENTIFICATION_ADD(TAG_HISTORICAL_DATA, TAG_HISTORY_DATA, "f_tag_history_data", "位号历史数据", "get_auto_identification_add", "辨识模型矩阵"),
+    F_VARIABLE_HISTORY_DATA_GET_CONTROL_SCHEME_GENERATION(TAG_HISTORICAL_DATA, VARIABLE_HISTORY_DATA, "f_variable_history_data", "变量历史数据", "get_control_scheme_generation", "控制方案优化"),
+    OPT_HISTORY_DATA_OPT_OFFLINE_FILE_UPLOAD(TAG_HISTORICAL_DATA, OPTIMIZATION_HISTORY_DATA, "opt_history_data", "优化历史数据", "opt_offline_file_upload", "优化历史数据选择"),
+    ALARM_PREDICTION_HISTORY_DATA_AAL_OFFLINE_FILE_UPLOAD(TAG_HISTORICAL_DATA, ALARM_PREDICTION_HISTORY_DATA, "alarm_prediction_history_data", "预警预测历史数据", "aml_offline_file_upload", "建模数据上传"),
+    HEN_REDESIGN_HISTORY_INFO_CHECK(TAG_HISTORICAL_DATA, HEAT_EXCHANGER_NETWORK_OPERATION_INFO, "hen_redesign_history", "换热网络运行信息", "info_check", "上传数据与校验"),
+    F_SPC_DATA_SPC_CSV_UPLOAD(TAG_HISTORICAL_DATA, TAG_DATA_FILE, "f_spc_data", "位号数据文件", "spc_csv_upload", "数据处理与质量判断/数据质量分析"),
     F_SPC_PID_DATA_SPC_PID_CSV_UPLOAD(TAG_HISTORICAL_DATA, CIRCUIT_DATA_FILE, "f_spc_pid_data", "回路数据文件", "spc_PID_csv_upload", "PID数据处理与质量判断/PID数据质量分析"),
 
     HEN_REDESIGN_DESIGN_INFO_INFO_CHECK(HEAT_EXCHANGER_NETWORK_DESIGN_INFO, null, "hen_redesign_design_info", "换热网络设计信息", "info_check", "上传数据与校验"),
     F_IDX_REPORT_DATA_REPORT(METRICS_BUSINESS_REPORT_DATA, null, "f_idx_report", "指标业务报表数据", "data_report", "报表数据解析"),
-    EXAM_DATA_PROCESS_RECEIVED_FORM(EXAM_QUESTION_DATA, null, "exam_data", "考题资料数据", "process_received_form", "考题自动生成"),
-    REDESIGN_ENERGY_INFO_EXERGY_CAL(OVERALL_INFORMATION_DEVICE, null, "redesign_energy_info", "装置整体信息", "exergy_cal", "节能潜力消耗分析"),
-    HEN_REDESIGN_RESTRICTED_SELECT_FORBIDDEN_RULE(CONDITION_INPUT, null, "hen_redesign_restricted", "限制条件输入", "select_forbidden_rule", "给定厂级限制条件");
+    EXAM_DATA_PROCESS_RECEIVED_FORM(EXAM_QUESTION_DATA, null, "exam_data", "考题资料数据", "process_received_form", "考试题目生成"),
+    REDESIGN_ENERGY_INFO_EXERGY_CAL(OVERALL_INFORMATION_DEVICE, null, "redesign_energy_info", "装置整体信息", "exergy_cal", "节能降耗瓶颈分析"),
+    HEN_REDESIGN_RESTRICTED_SELECT_FORBIDDEN_RULE(CONDITION_INPUT, null, "hen_redesign_restricted", "限制条件输入", "select_forbidden_rule", "指定现场限制条件");
 
     /**
      * 类别 (来源于 CategoryTypeEnum)
