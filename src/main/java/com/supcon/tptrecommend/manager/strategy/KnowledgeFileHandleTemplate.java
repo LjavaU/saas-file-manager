@@ -64,14 +64,15 @@ public class KnowledgeFileHandleTemplate {
      *
      */
     public void uploadToKnowledgeBase(Long fileId) {
+        FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
+            .select(FileObject::getObjectName, FileObject::getFileSize, FileObject::getBucketName, FileObject::getUserId)
+            .eq(FileObject::getId, fileId));
+        Long userId = fileObject.getUserId();
         CompletableFuture.runAsync(TtlRunnable.get(() -> {
-            FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
-                .select(FileObject::getObjectName, FileObject::getFileSize, FileObject::getBucketName, FileObject::getUserId)
-                .eq(FileObject::getId, fileId));
-            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), fileObject.getUserId());
+            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), userId);
             if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
                 // 通知解析进度
-                ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+                ProcessProgressSupport.notifyParseProcessing(fileId,userId, RandomUtil.getRandomPercentage(15, 20) );
                 FileDataSimple fileDataSimple = resp.getData().get(0);
                 List<String> keyWords = fileDataSimple.getKey_words();
                 // 保存文件关键词到文件推荐表中
@@ -80,12 +81,11 @@ public class KnowledgeFileHandleTemplate {
                 updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
             } else {
                 log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
-                markKnowledgeFileAsParseFailed(fileId);
+                markKnowledgeFileAsParseFailed(fileId, userId);
             }
-
         }), KNOWLEDGE_EXECUTOR).exceptionally(throwable -> {
             log.error("上传文件到知识库失败", throwable);
-            markKnowledgeFileAsParseFailed(fileId);
+            markKnowledgeFileAsParseFailed(fileId, userId);
             return null;
         });
 
@@ -158,12 +158,12 @@ public class KnowledgeFileHandleTemplate {
         }
     }
 
-    private void markKnowledgeFileAsParseFailed(Long fileId) {
+    private void markKnowledgeFileAsParseFailed(Long fileId, Long userId) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
         fileObject.setKnowledgeParseState(KnowledgeParseState.RED.getValue());
         fileObjectService.updateById(fileObject);
-        ProcessProgressSupport.notifyParseComplete(fileId);
+        ProcessProgressSupport.notifyParseComplete(fileId, userId);
     }
 }

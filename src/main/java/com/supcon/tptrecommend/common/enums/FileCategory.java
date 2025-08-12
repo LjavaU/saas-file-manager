@@ -22,6 +22,9 @@ public enum FileCategory {
 
     // 根据code获取value
     public static String getValueByCode(Integer code) {
+        if (code == null) {
+            return null;
+        }
         for (FileCategory category : FileCategory.values()) {
             if (category.code.equals(code)) {
                 return category.value;

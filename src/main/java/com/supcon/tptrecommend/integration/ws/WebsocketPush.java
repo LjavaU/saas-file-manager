@@ -1,11 +1,7 @@
 package com.supcon.tptrecommend.integration.ws;
 
 import com.supcon.systemcomponent.websocket.WebSocketSender;
-import com.supcon.systemcomponent.websocket.holder.WebSocketSessionHolder;
 import com.supcon.systemcomponent.websocket.message.JsonMessageDO;
-import org.springframework.web.socket.WebSocketSession;
-
-import java.util.List;
 
 
 /**
@@ -16,9 +12,8 @@ import java.util.List;
  */
 public class WebsocketPush {
 
-    public static <T> void pushMessage(T data) {
-        List<WebSocketSession> sessions = WebSocketSessionHolder.getSessions();
-        sessions.forEach(session -> WebSocketSender.send(session, JsonMessageDO.data(null, data)));
+    public static <T> void pushMessage(String sessionKey,T data) {
+        WebSocketSender.sendByKey(sessionKey, JsonMessageDO.data(null, data));
     }
 
 

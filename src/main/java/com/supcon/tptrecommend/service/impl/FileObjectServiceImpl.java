@@ -1,5 +1,7 @@
 package com.supcon.tptrecommend.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.system.base.entity.basic.impl.BasicServiceImpl;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
@@ -68,5 +70,24 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
         fileObjectMapper.updateKnowledgeParseState(fileObject);
     }
 
-
+    /**
+     * 通过文件 ID 获取用户 ID
+     *
+     * @param fileId 文件 ID
+     * @return {@link Long }
+     * @author luhao
+     * @since 2025/08/11 15:17:23
+     *
+     */
+    @Override
+    public Long getUserIdByFileId(Long fileId) {
+        return getObj(Wrappers.<FileObject>lambdaQuery()
+            .select(FileObject::getUserId)
+            .eq(AutoIdEntity::getId, fileId), obj -> {
+            if (obj instanceof Number) {
+                return ((Number) obj).longValue();
+            }
+            return null;
+        });
+    }
 }

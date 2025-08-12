@@ -13,4 +13,9 @@ public class Constants {
      * 位号历史价值插入大小
      */
     public static final int TAG_HISTORY_VALUE_INSERT_SIZE = 9000;
+
+    /**
+     * 指标解析任务redis key
+     */
+    public  static final String INDEX_PARSE_TASK = "file_parse_index_task";
 }

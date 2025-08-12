@@ -125,4 +125,12 @@ public class FileController extends BasicController {
     public SupResult<Boolean> update(@RequestBody SupRequestBody<FileAttributesUpdatedReq> req) {
         return data(fileManager.update(req.getData()));
     }
+
+    @GetMapping("getFileStatus/{fileId}")
+    @ApiOperation("获取文件解析状态")
+    @ApiOperationSupport(order = 11, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取文件解析状态", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Integer> getFileStatus(@PathVariable Long fileId) {
+      return data(fileManager.getFileStatus(fileId));
+    }
 }

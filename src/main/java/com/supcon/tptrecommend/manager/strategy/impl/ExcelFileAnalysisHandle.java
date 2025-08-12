@@ -50,8 +50,6 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
      */
     @Override
     public void handleFileAnalysis(Long fileId) {
-        // 通知解析进程【文件上传成功】
-        ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(5, 10));
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
             log.error("文件不存在，解析任务终止");
@@ -68,7 +66,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
                 if (file == null) {
                     throw new ServerException("临时文件" + originalFilename + "保存失败");
                 }
-                doHandle(file, fileId, originalFilename);
+                doHandle(file, fileId, originalFilename,fileObject.getUserId());
             } finally {
                 FileUtils.deleteTemporaryFile(file, originalFilename);
             }
@@ -83,7 +81,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
         fileObject.setCategory(category);
         fileObject.setContentOverview(summary);
         fileObject.setSubCategory(String.valueOf(subcategory));
-        if (thirdLevelCategory != -1) {
+        if (Objects.nonNull(thirdLevelCategory) && thirdLevelCategory != -1) {
             fileObject.setThirdLevelCategory(String.valueOf(thirdLevelCategory));
             fileObject.setAbility(FileCategoryAbilityAssociation.getAbilityByTagHistoryCategory(TagHistoryCategory.getByCode(thirdLevelCategory)));
         } else {
@@ -108,10 +106,11 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
      * @param file             文件
      * @param fileId           文件 ID
      * @param originalFilename 原始文件名
+     * @param userId 用户id
      * @author luhao
      * @since 2025/06/25 19:09:11
      */
-    private void doHandle(File file, Long fileId, String originalFilename) {
+    private void doHandle(File file, Long fileId, String originalFilename, Long userId) {
         // 获取表头和数据总记录行数
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
         ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);
@@ -133,8 +132,8 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
         FileClassifyResp fileClassifyResp = classifyFile(headerMarkdown, originalFilename);
         // 更新文件元数据
         updateFileParseMetadata(fileId, FileCategory.getValueByCode(fileClassifyResp.getCategory()), fileClassifyResp.getSummary(), fileClassifyResp.getSubcategory(), fileClassifyResp.getThird_level_category());
-        // 通知解析进程【LLM分类成功】
-        ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(15, 20));
+        // 通知解析进度【LLM分类成功】
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId,RandomUtil.getRandomPercentage(15, 20));
         // 根据业务分类找出业务处理器
         Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(fileClassifyResp.getSubcategory());
         // 如果有业务处理器，则进行数据处理
@@ -148,19 +147,19 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
             // 获取大模型返回的实体映射
             FileAlignmentResp alignmentResp = getFileHeaderMapping(headerMarkdown, JSONUtil.toJsonStr(businessDataHandler.getDbSchemaDescription()), originalFilename);
             // 通知解析进程【LLM实体映射成功】
-            ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(30, 40));
+            ProcessProgressSupport.notifyParseProcessing(fileId,userId, RandomUtil.getRandomPercentage(30, 40));
             Map<String, String> mapping = JSONUtil.toBean(alignmentResp.getData(), new TypeReference<Map<String, String>>() {
             }, true);
             // 根据业务分类获取动态数据映射器
             DynamicMapper<Object, Object> dynamicMapper = mapperFactory.getMapper(fileClassifyResp.getSubcategory());
             // 创建Excel数据监听器
-            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount, dynamicMapper);
+            ExcelDataListener excelDataListener = new ExcelDataListener(mapping, handlerOptional.get(), fileId, rowCount, dynamicMapper,userId);
             ExcelReaderBuilder read = EasyExcel.read(file, excelDataListener);
             setCsvFileEncoding(file, fileSuffix, read);
             read.sheet().doRead();
         } else { // 无业务处理器，则直接更新文件解析状态
             updateFileParsed(fileId);
-            ProcessProgressSupport.notifyParseComplete(fileId);
+            ProcessProgressSupport.notifyParseComplete(fileId,userId);
 
         }
 

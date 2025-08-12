@@ -7,20 +7,20 @@ import com.supcon.tptrecommend.integration.ws.WebsocketPush;
 public class ProcessProgressSupport {
 
 
-    public static void notifyParseComplete(Long fileId) {
+    public static void notifyParseComplete(Long fileId,Long userId) {
         FileParseProgressResp data = FileParseProgressResp.builder()
             .fileId(fileId)
             .parseProgress(100)
             .build();
-        WebsocketPush.pushMessage(data);
+        WebsocketPush.pushMessage(userId.toString(),data);
     }
 
-    public static void notifyParseProcessing(Long fileId, Integer progress) {
+    public static void notifyParseProcessing(Long fileId, Long userId,Integer progress) {
         FileParseProgressResp data = FileParseProgressResp.builder()
             .fileId(fileId)
             .parseProgress(progress)
             .build();
-        WebsocketPush.pushMessage(data);
+        WebsocketPush.pushMessage(userId.toString(),data);
     }
 
     /**

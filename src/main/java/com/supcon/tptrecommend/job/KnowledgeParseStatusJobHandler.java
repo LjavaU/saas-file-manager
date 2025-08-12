@@ -80,11 +80,11 @@ public class KnowledgeParseStatusJobHandler  {
                                 fileObject.setFileStatus(FileStatus.PARSED.getValue());
                             } else if (KnowledgeParseState.RED.getValue().equals(knowledgeParseState) || KnowledgeParseState.YELLOW.getValue().equals(knowledgeParseState)) {
                                 fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
-                                ProcessProgressSupport.notifyParseComplete(fileObjectResp.getId());
+                                ProcessProgressSupport.notifyParseComplete(fileObjectResp.getId(),fileObjectResp.getUserId());
 
                             } else {
                                 fileObject.setFileStatus(FileStatus.UNPARSED.getValue());
-                                ProcessProgressSupport.notifyParseProcessing(fileObjectResp.getId(),50);
+                                ProcessProgressSupport.notifyParseProcessing(fileObjectResp.getId(),fileObjectResp.getUserId(),50);
                             }
                             // 更新状态
                             fileObjectService.updateKnowledgeParseState(fileObject);
@@ -115,15 +115,17 @@ public class KnowledgeParseStatusJobHandler  {
 
     private void fetchRecommendationsWhenGreen(FileObjectResp fileObjectResp, String status) {
         if (KnowledgeParseState.GREEN.getValue().equals(KnowledgeParseState.valueByDesc(status))) {
+            Long userId = fileObjectResp.getUserId();
+            Long fileId = fileObjectResp.getId();
             CompletableFuture.runAsync(() -> {
                 KnowledgeRecommendationReq req = new KnowledgeRecommendationReq();
                 req.setBucket(fileObjectResp.getBucketName());
                 req.setObject(fileObjectResp.getObjectName());
-                req.setUser_id(String.valueOf(fileObjectResp.getUserId()));
+                req.setUser_id(String.valueOf(userId));
                 req.setTenant_id(fileObjectResp.getTenantId());
                 // 获取关键词
                 FileRecommendationResp recommendationResp = fileRecommendationService.getKeyWord(FileRecommendationReq.builder()
-                    .fileId(fileObjectResp.getId())
+                    .fileId(fileId)
                     .tenantId(fileObjectResp.getTenantId()).build());
                 String keyword = Optional.ofNullable(recommendationResp).map(FileRecommendationResp::getKeyword)
                     .orElse("\"基本原理\", \"发展历程\",\"技术\", \"应用\", \"技术关键点\", \"技术优势\"");
@@ -136,12 +138,12 @@ public class KnowledgeParseStatusJobHandler  {
                     if (CollectionUtil.isNotEmpty(questions)) {
                         updateOrSaveFileRecommendation(fileObjectResp, recommendationResp, questionStr);
                     }
-                    ProcessProgressSupport.notifyParseComplete(fileObjectResp.getId());
+                    ProcessProgressSupport.notifyParseComplete(fileId, userId);
                 }
 
             }, JOB_EXECUTOR).exceptionally(throwable -> {
                 log.error("获取知识库推荐问题失败", throwable);
-                ProcessProgressSupport.notifyParseComplete(fileObjectResp.getId());
+                ProcessProgressSupport.notifyParseComplete(fileId, userId);
                 return null;
             });
 

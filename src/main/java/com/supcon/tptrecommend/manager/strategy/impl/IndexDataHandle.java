@@ -1,12 +1,13 @@
 package com.supcon.tptrecommend.manager.strategy.impl;
 
 import cn.hutool.json.JSONUtil;
+import com.supcon.framework.redis.core.service.RedisService;
 import com.supcon.framework.tenant.core.getter.TenantContext;
+import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
-import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.entity.index.FileUploadResult;
 import com.supcon.tptrecommend.feign.entity.index.R;
 import com.supcon.tptrecommend.feign.entity.index.UploadResultItem;
@@ -28,9 +29,8 @@ import org.springframework.web.client.RestTemplate;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 指标报表数据处理器
@@ -51,12 +51,8 @@ public class IndexDataHandle implements BusinessDataHandler {
     @Value("${service.index.address:localhost}")
     private String indexUrl;
 
-    /**
-     * 存储指标解析返回的文件id
-     * key: 租户id-文件id
-     * value: 报表文件id
-     */
-    public static final Map<String, String> REPORT_FILE_ID = new ConcurrentHashMap<>();
+
+    private final RedisService redisService;
 
 
     @Override
@@ -81,6 +77,10 @@ public class IndexDataHandle implements BusinessDataHandler {
     }
 
     public void invokeIndexSystemProcessing(File file, Long fileId) {
+        Long userId = fileObjectService.getUserIdByFileId(fileId);
+        if (Objects.isNull(userId)) {
+            return;
+        }
         String url = indexUrl + "/indicator/report/excel/upload";
         // 1. 设置请求头
         HttpHeaders headers = new HttpHeaders();
@@ -92,8 +92,7 @@ public class IndexDataHandle implements BusinessDataHandler {
 
         // 3. 将 File 包装成 FileSystemResource
         body.add("files", new FileSystemResource(file));
-        // 由于上层调用使用了异步，所以在获取用户信息的时候不能再使用logUserUtils
-        body.add("user_id", Optional.ofNullable(fileObjectService.getById(fileId)).map(FileObject::getUserId).orElse(1L));
+        body.add("user_id", userId);
 
         // 4. 将请求头和请求体封装到 HttpEntity 中
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
@@ -112,23 +111,23 @@ public class IndexDataHandle implements BusinessDataHandler {
                 .findFirst();
             // 4. 根据是否找到ID来处理成功或失败的情况
             if (reportFileIdOpt.isPresent()) {
-                ProcessProgressSupport.notifyParseProcessing(fileId, RandomUtil.getRandomPercentage(25, 30));
+                ProcessProgressSupport.notifyParseProcessing(fileId, userId,RandomUtil.getRandomPercentage(25, 30));
                 String tenantId = TenantContext.getCurrentTenant();
-                REPORT_FILE_ID.put(tenantId + "-" + fileId, reportFileIdOpt.get());
+                redisService.hSet(Constants.INDEX_PARSE_TASK, tenantId + "-" + fileId, reportFileIdOpt.get());
             } else {
-                handleProcessingFailure(fileId);
+                handleProcessingFailure(fileId, userId);
             }
         } catch (Exception e) {
             log.error("请求指标系统处理解析报表数据失败", e);
-            handleProcessingFailure(fileId);
+            handleProcessingFailure(fileId, userId);
         }
 
 
     }
 
-    private void handleProcessingFailure(Long fileId) {
+    private void handleProcessingFailure(Long fileId, Long userId) {
         fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSE_FAILED);
-        ProcessProgressSupport.notifyParseComplete(fileId);
+        ProcessProgressSupport.notifyParseComplete(fileId, userId);
     }
 
 
