@@ -84,8 +84,10 @@ public class IndexParseStatusJobHandle {
                 TenantContext.clear();
             }
         );
-        // 移除已经处理完成的报表
-        redisService.hDel(Constants.INDEX_PARSE_TASK,keysToRemove.toArray());
+        if (!keysToRemove.isEmpty()) {
+            // 移除已经处理完成的报表
+            redisService.hDel(Constants.INDEX_PARSE_TASK, keysToRemove.toArray());
+        }
     }
 
     /**
