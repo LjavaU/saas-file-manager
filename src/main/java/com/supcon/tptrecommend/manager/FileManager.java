@@ -111,4 +111,15 @@ public interface FileManager {
      * @since 2025/07/30 15:08:08
      */
     boolean update(FileAttributesUpdatedReq req);
+
+    /**
+     * 获取文件解析状态
+     *
+     * @param fileId 文件 ID
+     * @return {@link Integer }
+     * @author luhao
+     * @since 2025/08/11 19:49:46
+     *
+     */
+    Integer getFileStatus(Long fileId);
 }

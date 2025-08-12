@@ -3,8 +3,11 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 1024MB
-      max-request-size: 1024MB
+      max-file-size: 10240MB
+      max-request-size: 10240MB
+  redis:
+    host: localhost
+    port: 6379
 sup:
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -30,6 +33,14 @@ sup:
   websocket:
       # websocket 端点路径,多个中间','隔开
     path: /supWs
+    session-key-options:
+      # 是否开启key映射功能，默认关闭
+      enabled: true
+      # key类型：session绑定key，目前支持 user(用户)、param(参数) 两种模式，默认为none
+      type: user
+      # 全局消息开关，默认关闭
+    globalSend: true
+
 minio:
   endpoint: http://seak8sm1.supcon5t.com:30350
   accessKey: admin

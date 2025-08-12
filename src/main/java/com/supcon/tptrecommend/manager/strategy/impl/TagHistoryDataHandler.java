@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 位号历史数据处理器
@@ -69,7 +70,11 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
 
     @Override
     public void processDirectly(File file, Long fileId, int rowCount) {
-        EasyExcel.read(file, new DataListener(fileId, rowCount))
+        Long userId = fileObjectService.getUserIdByFileId(fileId);
+        if (Objects.isNull(userId)) {
+            return;
+        }
+        EasyExcel.read(file, new DataListener(fileId, rowCount, userId))
             .sheet()
             .doRead();
     }
@@ -81,27 +86,33 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
         private int Thresholds;
         private final Long fileId;
         private int lastReportedProgress = -1;
+        private final Long userId;
 
-        public DataListener(Long fileId, int totalCount) {
+        public DataListener(Long fileId, int totalCount, Long userId) {
             this.fileId = fileId;
             this.totalCount = totalCount;
+            this.userId = userId;
         }
 
         @Override
         public void invoke(Map<Integer, String> data, AnalysisContext context) {
             String time = data.get(0);
-            if(NumberUtil.isNumber( time)){
+            if (NumberUtil.isNumber(time)) {
                 return;
             }
             data.remove(0);
             LocalDateTime dateTime = DateParserUtil.parse(time);
             for (Map.Entry<Integer, String> entry : data.entrySet()) {
-                if (!NumberUtil.isNumber(entry.getValue())) {
+                if (!NumberUtil.isNumber(entry.getValue()) || entry.getKey() >= headers.size()) {
+                    continue;
+                }
+                String tagName = headers.get(entry.getKey());
+                if (StrUtil.isBlank(tagName)) {
                     continue;
                 }
                 TagValueDTO tagValueDTO = new TagValueDTO();
                 tagValueDTO.setQuality(192L);
-                tagValueDTO.setTagName(headers.get(entry.getKey()));
+                tagValueDTO.setTagName(tagName);
                 tagValueDTO.setTagValue(entry.getValue());
                 if (StrUtil.isNotBlank(time)) {
                     tagValueDTO.setTagTime(dateTime);
@@ -120,11 +131,11 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
         public void doAfterAllAnalysed(AnalysisContext context) {
             if (!entities.isEmpty()) {
                 batchSave(entities);
+                entities.clear();
             }
-            entities.clear();
             // 更新文件解析状态为成功
             fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
-            ProcessProgressSupport.notifyParseComplete(fileId);
+            ProcessProgressSupport.notifyParseComplete(fileId, userId);
         }
 
         @Override
@@ -142,7 +153,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
                 int startProgress = 20;
                 int progress = ProcessProgressSupport.calculateFromStartProgress(currentRowNum, totalCount, startProgress);
                 if (progress > lastReportedProgress) {
-                    ProcessProgressSupport.notifyParseProcessing(fileId, progress);
+                    ProcessProgressSupport.notifyParseProcessing(fileId, userId, progress);
                     lastReportedProgress = progress;
                 }
             }

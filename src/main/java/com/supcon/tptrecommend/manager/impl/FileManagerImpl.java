@@ -18,10 +18,7 @@ import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
 import com.supcon.tptrecommend.common.enums.*;
-import com.supcon.tptrecommend.common.utils.FileUtils;
-import com.supcon.tptrecommend.common.utils.LoginUserUtils;
-import com.supcon.tptrecommend.common.utils.MinioUtils;
-import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
@@ -115,12 +112,16 @@ public class FileManagerImpl implements FileManager {
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
 
-        doFileProcess(fileId, originalFilename);
+        // 通知解析进度【文件上传成功】
+        Long userId = user.getId();
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId,RandomUtil.getRandomPercentage(5, 10));
+
+        doFileProcess(fileId,userId, originalFilename);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void doFileProcess(Long fileId, String originalFilename) {
+    private void doFileProcess(Long fileId, Long userId, String originalFilename) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
             FileAnalysisHandle fileAnalysisHandle = handler.get();
@@ -129,12 +130,12 @@ public class FileManagerImpl implements FileManager {
                     fileAnalysisHandle.handleFileAnalysis(fileId);
                 }), EXECUTOR).exceptionally(throwable -> {
                     log.error("文件：{},在处理过程中失败", originalFilename, throwable);
-                    markFileAsParseFailed(fileId);
+                    markFileAsParseFailed(fileId,userId);
                     return null;
                 });
             } catch (RejectedExecutionException e) {
                 log.error("文件解析已经达到负载，拒绝执行");
-                markFileAsParseFailed(fileId);
+                markFileAsParseFailed(fileId, userId);
             }
         } else {
             log.error("文件：{},不支持解析", originalFilename);
@@ -149,9 +150,9 @@ public class FileManagerImpl implements FileManager {
         fileObjectService.updateById(fileObject);
     }
 
-    private void markFileAsParseFailed(Long fileId) {
+    private void markFileAsParseFailed(Long fileId, Long userId) {
         updateFileStatusParseFailed(fileId);
-        ProcessProgressSupport.notifyParseComplete(fileId);
+        ProcessProgressSupport.notifyParseComplete(fileId,userId);
     }
 
 
@@ -587,5 +588,12 @@ public class FileManagerImpl implements FileManager {
             .filter(StrUtil::isNotBlank)
             .distinct()
             .collect(Collectors.joining(","));
+    }
+
+    @Override
+    public Integer getFileStatus(Long fileId) {
+        return Optional.ofNullable(fileObjectService.getById(fileId))
+            .map(FileObject::getFileStatus)
+            .orElse(null);
     }
 }

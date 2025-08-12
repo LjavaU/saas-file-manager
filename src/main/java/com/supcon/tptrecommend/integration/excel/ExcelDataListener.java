@@ -73,7 +73,12 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
      */
     private final DynamicMapper<Object, Object> dynamicMapper;
 
-    public ExcelDataListener(Map<String, String> mapping, BusinessDataHandler handler, Long fileId, int totalCount, DynamicMapper<Object, Object> mapper) {
+    /**
+     * 用户 ID
+     */
+    private final Long userId;
+
+    public ExcelDataListener(Map<String, String> mapping, BusinessDataHandler handler, Long fileId, int totalCount, DynamicMapper<Object, Object> mapper, Long userId) {
         this.excelHeaderToEntityFieldMap = mapping;
         this.handler = handler;
         // 初始化ObjectMapper，并注册Java 8时间模块以正确处理日期
@@ -82,6 +87,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         this.fileId = fileId;
         this.totalCount = totalCount;
         this.dynamicMapper = mapper;
+        this.userId = userId;
         // 如果实体属性是驼峰命名(camelCase)，而数据库是下划线(snake_case)，可以在此配置转换策略
         // this.objectMapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
     }
@@ -141,7 +147,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         if (totalCount > 0) {
             int progress = ProcessProgressSupport.calculateFromStartProgress(currentRowNum, totalCount, startProgress);
             if (progress > lastReportedProgress) {
-                ProcessProgressSupport.notifyParseProcessing(fileId, progress);
+                ProcessProgressSupport.notifyParseProcessing(fileId,userId, progress);
                 lastReportedProgress = progress;
             }
         }
@@ -162,7 +168,7 @@ public class ExcelDataListener extends AnalysisEventListener<Map<Integer, String
         // 更新文件解析状态为成功
         IFileObjectService fileObjectService = SpringUtil.getBean(IFileObjectService.class);
         fileObjectService.updateFileParseStatus(fileId, FileStatus.PARSED);
-        ProcessProgressSupport.notifyParseComplete(fileId);
+        ProcessProgressSupport.notifyParseComplete(fileId,userId);
     }
 
     private void saveData() {

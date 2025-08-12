@@ -61,7 +61,7 @@ public class WordFileAnalysisHandle implements FileAnalysisHandle {
         String uniqueFilename = FileUtils.getFileNameFromObjectName(objectName);
         String originalName = fileObject.getOriginalName();
         // TODO：控制word文件大小
-        if (fileObject.getFileSize() > 1024 * 1024 * 50) {
+        if (fileObject.getFileSize() > 1024 * 1024 * 100) {
             log.error("word文件过大，解析任务终止");
             return;
         }

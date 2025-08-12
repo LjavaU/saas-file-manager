@@ -59,4 +59,15 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      */
     void updateKnowledgeParseState(FileObject fileObject);
 
+    /**
+     * 通过文件 ID 获取用户 ID
+     *
+     * @param fileId 文件 ID
+     * @return {@link Long }
+     * @author luhao
+     * @since 2025/08/11 15:17:18
+     *
+     */
+    Long getUserIdByFileId(Long fileId);
+
 }
