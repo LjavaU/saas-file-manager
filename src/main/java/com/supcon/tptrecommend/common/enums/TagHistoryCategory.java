@@ -85,5 +85,22 @@ public enum TagHistoryCategory {
             .orElse(null);
     }
 
+    /**
+     * 根据code获取category
+     *
+     * @param code 法典
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/18 11:04:05
+     *
+     */
+    public static String getCategoryByCode(Integer code) {
+        return Arrays.stream(TagHistoryCategory.values())
+            .filter(item -> item.getCode().equals(code))
+            .map(TagHistoryCategory::getCategory)
+            .findFirst()
+            .orElse(null);
+    }
+
 
 }
