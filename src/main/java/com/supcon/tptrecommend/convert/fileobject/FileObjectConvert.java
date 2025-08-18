@@ -3,6 +3,7 @@ package com.supcon.tptrecommend.convert.fileobject;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.StrUtil;
 import com.supcon.tptrecommend.common.enums.FileCategoryAbilityAssociation;
+import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.enums.TagHistoryCategory;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
@@ -33,7 +34,9 @@ public interface FileObjectConvert {
     FileObject convert(FileObjectCreateReq fileObjectCreateReq);
 
     @Mapping(target = "fileSize", expression = "java(mapFileSize(fileObject.getFileSize()))")
-    @Mapping(target = "category", expression = "java(mapCategory(fileObject))")
+    @Mapping(target = "category", expression = "java(mapThirdCategory(fileObject))")
+    @Mapping(target = "firstCategory", source = "category")
+    @Mapping(target = "secondCategory", expression = "java(mapSecondCategory(fileObject))")
     @Mapping(target = "categoryIdentifier", expression = "java(mapCategoryIdentifier(fileObject))")
     FileObjectResp convert(FileObject fileObject);
 
@@ -58,6 +61,22 @@ public interface FileObjectConvert {
             }
         }
         return fileObject.getCategory();
+    }
+
+    default String mapThirdCategory(FileObject fileObject) {
+        String thirdLevelCategory = fileObject.getThirdLevelCategory();
+        if (StrUtil.isBlank(thirdLevelCategory)) {
+            return null;
+        }
+       return TagHistoryCategory.getCategoryByCode(Integer.valueOf(thirdLevelCategory));
+    }
+
+    default String mapSecondCategory(FileObject fileObject) {
+        String subCategory = fileObject.getSubCategory();
+        if (StrUtil.isBlank(subCategory)) {
+            return null;
+        }
+        return SubCategoryEnum.fromCode(Integer.parseInt(subCategory));
     }
 
     default String mapCategoryIdentifier(FileObject fileObject) {

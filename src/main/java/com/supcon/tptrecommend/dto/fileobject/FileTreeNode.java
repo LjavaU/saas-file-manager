@@ -1,5 +1,7 @@
 package com.supcon.tptrecommend.dto.fileobject;
 
+import com.supcon.tptrecommend.common.enums.FileKind;
+import com.supcon.tptrecommend.entity.FileObject;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -44,22 +46,33 @@ public class FileTreeNode {
     /**
      * 查找或创建子节点
      *
-     * @param childName 子项名称
-     * @param id        文件id
-     * @param type      类型
-     * @param path      路径
-     * @param size      文件大小
+     * @param childName  子项名称
+     * @param type       类型
+     * @param fileObject 文件对象
      * @return {@link FileTreeNode }
      * @author luhao
      * @since 2025/07/04 11:12:16
+     *
+     *
      */
-    public FileTreeNode findOrCreateChild(String childName, Long id, String type, String path, Long size, Integer knowledgeParseState) {
+    public FileTreeNode findOrCreateChild(String childName, String type, FileObject fileObject) {
         for (FileTreeNode child : this.children) {
             if (child.getName().equals(childName)) {
                 return child;
             }
         }
-        FileTreeNode newChild = new FileTreeNode(id, childName.substring(childName.indexOf("_") + 1), type, path, size, knowledgeParseState);
+        String objectName = fileObject.getObjectName();
+        Long id = fileObject.getId();
+        Long fileSize = fileObject.getFileSize();
+        Integer knowledgeParseState = fileObject.getKnowledgeParseState();
+        FileTreeNode newChild = null;
+        if (FileKind.FILE.getValue().equals(type)) {
+            newChild = new FileTreeNode(id, fileObject.getOriginalName(), type, objectName, fileSize, knowledgeParseState);
+
+        } else if (FileKind.FOLDER.getValue().equals(type)) {
+            objectName = objectName.substring(0, objectName.lastIndexOf("/") + 1);
+            newChild = new FileTreeNode(id, childName, type, objectName, fileSize, knowledgeParseState);
+        }
         this.children.add(newChild);
         this.children.sort(Comparator.comparing(FileTreeNode::getType).reversed());
         return newChild;

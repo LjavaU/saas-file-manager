@@ -1,6 +1,7 @@
 package com.supcon.tptrecommend.manager.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
@@ -114,9 +115,9 @@ public class FileManagerImpl implements FileManager {
 
         // 通知解析进度【文件上传成功】
         Long userId = user.getId();
-        ProcessProgressSupport.notifyParseProcessing(fileId, userId,RandomUtil.getRandomPercentage(5, 10));
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
 
-        doFileProcess(fileId,userId, originalFilename);
+        doFileProcess(fileId, userId, originalFilename);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
@@ -130,7 +131,7 @@ public class FileManagerImpl implements FileManager {
                     fileAnalysisHandle.handleFileAnalysis(fileId);
                 }), EXECUTOR).exceptionally(throwable -> {
                     log.error("文件：{},在处理过程中失败", originalFilename, throwable);
-                    markFileAsParseFailed(fileId,userId);
+                    markFileAsParseFailed(fileId, userId);
                     return null;
                 });
             } catch (RejectedExecutionException e) {
@@ -152,7 +153,7 @@ public class FileManagerImpl implements FileManager {
 
     private void markFileAsParseFailed(Long fileId, Long userId) {
         updateFileStatusParseFailed(fileId);
-        ProcessProgressSupport.notifyParseComplete(fileId,userId);
+        ProcessProgressSupport.notifyParseComplete(fileId, userId);
     }
 
 
@@ -403,7 +404,10 @@ public class FileManagerImpl implements FileManager {
             path = getPath(LoginUserUtils.getLoginUserInfo());
         }
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
-            .likeRight(FileObject::getObjectName, path));
+            .likeRight(FileObject::getObjectName, path)
+            .orderBy(true, true, FileObject::getCreateTime));
+        // 在此处添加重命名逻辑
+        renameDuplicateOriginalNames(fileObjects);
         // 获取文件id列表
         Map<Long, List<String>> recommendationMap = loadFileRecommendations(fileObjects);
         // 用于最终返回的列表
@@ -421,7 +425,7 @@ public class FileManagerImpl implements FileManager {
 
             if (slashIndex == -1) {
                 // 不包含'/'，是直接子文件
-                FileNodeResp node = getFileNodeResp(fileObject, relativePath, objectName, recommendationMap);
+                FileNodeResp node = getFileNodeResp(fileObject, objectName, recommendationMap);
                 fileNodes.add(node);
             } else {
                 // 包含'/'，说明在子文件夹下
@@ -440,7 +444,99 @@ public class FileManagerImpl implements FileManager {
 
         // 先按照文件夹进行排序，再按照上传时间进行排序
         fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
+
         return fileNodes;
+    }
+
+    /**
+     * 对 FileObject 列表中的重复 originalName 进行重命名，并将结果存储在 displayName 字段中。
+     * 例如：[a.txt, b.txt, a.txt] -> [a.txt, b.txt, a.txt(1)]
+     *
+     * @param fileObjects 从数据库查询出的文件对象列表
+     */
+    private void renameDuplicateOriginalNames(List<FileObject> fileObjects) {
+        if (CollectionUtil.isEmpty(fileObjects)) {
+            return;
+        }
+
+        Map<String, Integer> nameCount = new HashMap<>();
+
+        for (FileObject fileObject : fileObjects) {
+            String name = fileObject.getOriginalName();
+            int count = nameCount.getOrDefault(name, 0);
+
+            if (count > 0) {
+                // 如果已经出现过，进行重命名
+                String newName = generateNewName(name, count);
+                fileObject.setOriginalName(newName);
+            } else {
+                // 第一次出现，直接使用原始名称
+                fileObject.setOriginalName(name);
+            }
+
+            // 更新这个名称的出现次数
+            nameCount.put(name, count + 1);
+        }
+    }
+
+    /**
+     * 递归地重命名文件树中每个文件夹下的同名文件。
+     * @param node 当前遍历到的树节点（通常从根节点开始）
+     */
+    public void renameDuplicateFilesInTree(FileTreeNode node) {
+        // 1. 安全检查：如果节点为空，或者是文件（没有子节点），则直接返回
+        if (node == null || node.getChildren() == null || node.getChildren().isEmpty()) {
+            return;
+        }
+
+        // 2. 处理当前节点的直属子节点
+        Map<String, Integer> nameCount = new HashMap<>();
+        List<FileTreeNode> children = node.getChildren();
+
+        for (FileTreeNode child : children) {
+            // 只对文件类型的子节点进行重命名
+            if ( FileKind.FILE.getValue().equals(child.getType())) {
+                String originalName = child.getName();
+                int count = nameCount.getOrDefault(originalName, 0);
+
+                if (count > 0) {
+                    // 发现重名文件，生成新名字并更新
+                    String newName = generateNewName(originalName, count);
+                    child.setName(newName); // 更新节点名称
+                }
+                // 更新该名称在当前父节点下的出现次数
+                nameCount.put(originalName, count + 1);
+            }
+        }
+
+        // 3. 递归处理所有是文件夹的子节点
+        for (FileTreeNode child : children) {
+            if ( FileKind.FOLDER.getValue().equals(child.getType())) {
+                // 对子文件夹递归调用同样的方法
+                renameDuplicateFilesInTree(child);
+            }
+        }
+    }
+    /**
+     * 根据原始文件名和计数生成新文件名。
+     * 例如："report.docx", 1 -> "report(1).docx"
+     * 例如："document", 2 -> "document(2)"
+     *
+     * @param originalName 原始文件名
+     * @param count        重复的序号
+     * @return 生成的新文件名
+     */
+    private String generateNewName(String originalName, int count) {
+        int dotIndex = originalName.lastIndexOf('.');
+        if (dotIndex != -1) {
+            // 文件有扩展名
+            String nameWithoutExtension = originalName.substring(0, dotIndex);
+            String extension = originalName.substring(dotIndex);
+            return String.format("%s(%d)%s", nameWithoutExtension, count, extension);
+        } else {
+            // 文件没有扩展名
+            return String.format("%s(%d)", originalName, count);
+        }
     }
 
     private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
@@ -467,11 +563,11 @@ public class FileManagerImpl implements FileManager {
     }
 
     @NotNull
-    private FileNodeResp getFileNodeResp(FileObject fileObject, String relativePath, String objectName, Map<Long, List<String>> recommendationMap) {
+    private FileNodeResp getFileNodeResp(FileObject fileObject, String objectName, Map<Long, List<String>> recommendationMap) {
         FileNodeResp node = new FileNodeResp();
         node.setId(fileObject.getId());
         node.setType(FileKind.FILE.getValue());
-        node.setName(relativePath.substring(relativePath.indexOf("_") + 1));
+        node.setName(fileObject.getOriginalName());
         node.setPath(objectName);
         node.setCategory(FileObjectConvert.INSTANCE.mapCategory(fileObject));
         String ability = fileObject.getAbility();
@@ -501,8 +597,8 @@ public class FileManagerImpl implements FileManager {
         // 3. 递归列出所有对象
         String path = getPath(LoginUserUtils.getLoginUserInfo());
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
-            .likeRight(FileObject::getObjectName, path));
-
+            .likeRight(FileObject::getObjectName, path)
+            .orderBy(true, true, FileObject::getCreateTime));
         // 4. 遍历对象并构建树
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
@@ -513,17 +609,17 @@ public class FileManagerImpl implements FileManager {
             for (int i = 0; i < parts.length; i++) {
                 String part = parts[i];
                 boolean isFile = (i == parts.length - 1 && StrUtil.isAllNotEmpty(fileObject.getOriginalName(), fileObject.getContentType()));
-                Long id = fileObject.getId();
                 if (isFile) {
                     // 文件节点
-                    currentNode.findOrCreateChild(part, id, FileKind.FILE.getValue(), objectName, fileObject.getFileSize(), fileObject.getKnowledgeParseState());
+                    currentNode.findOrCreateChild(part, FileKind.FILE.getValue(), fileObject);
                 } else {
                     // 文件夹节点
-                    currentNode = currentNode.findOrCreateChild(part, id, FileKind.FOLDER.getValue(), objectName.substring(0, objectName.lastIndexOf("/") + 1), null, null);
+                    currentNode = currentNode.findOrCreateChild(part, FileKind.FOLDER.getValue(),fileObject);
                 }
             }
 
         }
+        renameDuplicateFilesInTree(root);
         return root;
     }
 
