@@ -406,8 +406,6 @@ public class FileManagerImpl implements FileManager {
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path)
             .orderBy(true, true, FileObject::getCreateTime));
-        // 在此处添加重命名逻辑
-        renameDuplicateOriginalNames(fileObjects);
         // 获取文件id列表
         Map<Long, List<String>> recommendationMap = loadFileRecommendations(fileObjects);
         // 用于最终返回的列表
@@ -442,9 +440,10 @@ public class FileManagerImpl implements FileManager {
 
         }
 
+        // 在此处添加重命名逻辑
+        renameDuplicateOriginalNames(fileNodes);
         // 先按照文件夹进行排序，再按照上传时间进行排序
         fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
-
         return fileNodes;
     }
 
@@ -452,26 +451,26 @@ public class FileManagerImpl implements FileManager {
      * 对 FileObject 列表中的重复 originalName 进行重命名，并将结果存储在 displayName 字段中。
      * 例如：[a.txt, b.txt, a.txt] -> [a.txt, b.txt, a.txt(1)]
      *
-     * @param fileObjects 从数据库查询出的文件对象列表
+     * @param fileNodeResps 从数据库查询出的文件对象列表
      */
-    private void renameDuplicateOriginalNames(List<FileObject> fileObjects) {
-        if (CollectionUtil.isEmpty(fileObjects)) {
+    private void renameDuplicateOriginalNames(List<FileNodeResp> fileNodeResps) {
+        if (CollectionUtil.isEmpty(fileNodeResps)) {
             return;
         }
 
         Map<String, Integer> nameCount = new HashMap<>();
 
-        for (FileObject fileObject : fileObjects) {
-            String name = fileObject.getOriginalName();
+        for (FileNodeResp fileNodeResp : fileNodeResps) {
+            String name = fileNodeResp.getName();
             int count = nameCount.getOrDefault(name, 0);
 
             if (count > 0) {
                 // 如果已经出现过，进行重命名
                 String newName = generateNewName(name, count);
-                fileObject.setOriginalName(newName);
+                fileNodeResp.setName(newName);
             } else {
                 // 第一次出现，直接使用原始名称
-                fileObject.setOriginalName(name);
+                fileNodeResp.setName(name);
             }
 
             // 更新这个名称的出现次数
