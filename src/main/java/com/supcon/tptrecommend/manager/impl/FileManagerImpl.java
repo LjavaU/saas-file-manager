@@ -438,11 +438,12 @@ public class FileManagerImpl implements FileManager {
             }
 
         }
-
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getUploadTime));
         // 在此处添加重命名逻辑
         renameDuplicateOriginalNames(fileNodes);
         // 先按照文件夹进行排序，再按照上传时间进行排序
         fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
+
         return fileNodes;
     }
 
@@ -460,7 +461,6 @@ public class FileManagerImpl implements FileManager {
 
         for (FileNodeResp fileNodeResp : fileNodeResps) {
             String name = fileNodeResp.getName();
-
             if (existNames.contains(name)) {
                 // 如果已经出现过，进行重命名
                 String newName = generateNewName(fileNodeResp.getId(), name);
@@ -499,19 +499,15 @@ public class FileManagerImpl implements FileManager {
                     // 发现重名文件，生成新名字并更新
                     String newName = generateNewName(child.getId(), originalName);
                     child.setName(newName); // 更新节点名称
-                }else{
+                } else {
                     existNames.add(originalName);
                 }
-            }
-        }
-
-        // 3. 递归处理所有是文件夹的子节点
-        for (FileTreeNode child : children) {
-            if (FileKind.FOLDER.getValue().equals(child.getType())) {
+            } else if (FileKind.FOLDER.getValue().equals(child.getType())) {
                 // 对子文件夹递归调用同样的方法
                 renameDuplicateFilesInTree(child);
             }
         }
+        children.sort(Comparator.comparing(FileTreeNode::getId).reversed());
     }
 
     /**
@@ -593,6 +589,7 @@ public class FileManagerImpl implements FileManager {
         String path = getPath(LoginUserUtils.getLoginUserInfo());
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
+        fileObjects.sort(Comparator.comparing(FileObject::getCreateTime));
         // 4. 遍历对象并构建树
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
