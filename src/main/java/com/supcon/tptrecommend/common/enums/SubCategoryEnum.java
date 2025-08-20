@@ -37,7 +37,8 @@ public enum SubCategoryEnum {
     METRICS_BUSINESS_REPORT_DATA(20, "指标业务报表数据"),
     EXAM_QUESTION_DATA(21, "考题资料数据"),
     OVERALL_INFORMATION_DEVICE(22, "装置整体信息"),
-    CONDITION_INPUT(23, "限制条件输入");
+    CONDITION_INPUT(23, "限制条件输入"),
+    ATMOSPHERIC_PRESSURE_TOWERS(24, "常压塔近期运行数据");
 
     private final Integer code;
     private final String description;
