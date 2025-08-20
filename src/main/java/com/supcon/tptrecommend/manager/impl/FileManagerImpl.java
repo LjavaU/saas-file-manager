@@ -630,10 +630,11 @@ public class FileManagerImpl implements FileManager {
         }
         String originalName = fileObject.getOriginalName();
         String subCategory = fileObject.getSubCategory();
-        Integer categoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+        Integer indexCategoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+        Integer tagHistoryCode = SubCategoryEnum.TAG_HISTORICAL_DATA.getCode();
         if (!(originalName.endsWith(".xlsx") || originalName.endsWith(".xls") || originalName.endsWith(".csv"))
-            || (categoryCode.equals(Integer.parseInt(subCategory)))
-            || (SubCategoryEnum.TAG_HISTORICAL_DATA.getCode().equals(Integer.parseInt(subCategory)))) {
+            || (StrUtil.isNotBlank(subCategory) && (indexCategoryCode.equals(Integer.parseInt(subCategory))
+            || (tagHistoryCode.equals(Integer.parseInt(subCategory)))))) {
             throw new ClientException("暂不支持此文件操作");
         }
         Integer unparsedValue = FileStatus.UNPARSED.getValue();
@@ -642,9 +643,9 @@ public class FileManagerImpl implements FileManager {
                 .set(FileObject::getFileStatus, unparsedValue)
                 .eq(AutoIdEntity::getId, fileId));
         }
-        doFileProcess(fileId, LoginUserUtils.getLoginUserInfo().getId(), originalName, categoryCode);
+        doFileProcess(fileId, LoginUserUtils.getLoginUserInfo().getId(), originalName, indexCategoryCode);
         fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-            .set(FileObject::getSubCategory, categoryCode)
+            .set(FileObject::getSubCategory, indexCategoryCode)
             .set(FileObject::getAbility, FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA))
             .eq(AutoIdEntity::getId, fileId));
     }
