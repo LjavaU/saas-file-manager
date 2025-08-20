@@ -21,17 +21,17 @@ sup:
   schedule:
     username: admin
     password: 123456
-    addresses:  system-schedule-obp-dev.supcon5t.com/xxl-job-admin
+    addresses: system-schedule-obp-dev.supcon5t.com/xxl-job-admin
     executor:
-        address: http://10.30.75.78:9998
-        appName: tpt-recommend-local
+      address: http://10.30.75.78:9998
+      appName: tpt-recommend-local
   tenant:
     dt: 0
     enabled: true
     db.enabled: true
     http.enabled: true
   websocket:
-      # websocket 端点路径,多个中间','隔开
+    # websocket 端点路径,多个中间','隔开
     path: /supWs
     session-key-options:
       # 是否开启key映射功能，默认关闭
@@ -71,3 +71,12 @@ service:
     address: http://supcon-rag-indu-dev.supcon5t.com
 file:
   temp-dir: D:/temp/uploads
+# 自定义线程池配置
+threadpool:
+  # 文件处理线程池配置
+  file-processing:
+    core-pool-size: 20       # 核心线程数 (建议与CPU核心数相同)
+    max-pool-size: 40        # 最大线程数 (建议为CPU核心数的2倍)
+    queue-capacity: 500      # 任务队列容量
+    keep-alive-seconds: 60   # 线程空闲时间（秒）
+    thread-name-prefix: "file-processor-" # 线程名前缀，便于日志排查

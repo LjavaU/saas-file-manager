@@ -122,4 +122,6 @@ public interface FileManager {
      *
      */
     Integer getFileStatus(Long fileId);
+
+    void reIndexParse(Long fileId);
 }

@@ -1,7 +1,6 @@
 package com.supcon.tptrecommend.manager.impl;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
@@ -32,12 +31,14 @@ import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
 import io.minio.StatObjectResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,12 +48,13 @@ import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class FileManagerImpl implements FileManager {
 
@@ -69,17 +71,23 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileRecommendationService fileRecommendationService;
 
-    /**
-     * 用于处理IO密集型任务
-     * 核心线程为：CPU核心是*2
-     * 为了保证服务的可用性，如果队列已满，则丢弃解析任务
-     */
-    private final Executor EXECUTOR = new ThreadPoolExecutor(20, 40,
-        60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
-        new ThreadPoolExecutor.AbortPolicy());
+    private final Executor fileExecutor;
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
+    public FileManagerImpl(MinioUtils minioUtils,
+                           IFileObjectService fileObjectService,
+                           KnowledgeFeign knowledgeFeign,
+                           IFileRecommendationService fileRecommendationService,
+                           FileAnalysisHandleFactory fileAnalysisHandleFactory,
+                           @Qualifier("fileProcessingExecutor") Executor fileExecutor) {
+        this.minioUtils = minioUtils;
+        this.fileObjectService = fileObjectService;
+        this.knowledgeFeign = knowledgeFeign;
+        this.fileRecommendationService = fileRecommendationService;
+        this.fileAnalysisHandleFactory = fileAnalysisHandleFactory;
+        this.fileExecutor = fileExecutor;
+    }
 
     /**
      * 上传文件
@@ -108,28 +116,28 @@ public class FileManagerImpl implements FileManager {
         } else {
             objectKey = getPath(user) + uniqueFilename;
         }
+
         // 上传文件到MinIO
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-
         // 通知解析进度【文件上传成功】
         Long userId = user.getId();
         ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
 
-        doFileProcess(fileId, userId, originalFilename);
+        doFileProcess(fileId, userId, originalFilename, null);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void doFileProcess(Long fileId, Long userId, String originalFilename) {
+    private void doFileProcess(Long fileId, Long userId, String originalFilename, Integer category) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
             FileAnalysisHandle fileAnalysisHandle = handler.get();
             try {
                 CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                    fileAnalysisHandle.handleFileAnalysis(fileId);
-                }), EXECUTOR).exceptionally(throwable -> {
+                    fileAnalysisHandle.handleFileAnalysis(fileId, category);
+                }), fileExecutor).exceptionally(throwable -> {
                     log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                     markFileAsParseFailed(fileId, userId);
                     return null;
@@ -186,7 +194,7 @@ public class FileManagerImpl implements FileManager {
      * @since 2025/06/19 10:18:15
      */
     private Long saveMetadataToDB(MultipartFile file, LoginInfoUserDTO user, String objectKey, String originalFilename) {
-        return fileObjectService.saveObj(FileObjectCreateReq.builder()
+        FileObjectCreateReq createReq = FileObjectCreateReq.builder()
             .userId(user.getId())
             .userName(user.getUsername())
             .objectName(objectKey)
@@ -194,7 +202,25 @@ public class FileManagerImpl implements FileManager {
             .bucketName(bucket)
             .contentType(file.getContentType())
             .fileSize(file.getSize())
-            .build());
+            .build();
+        Long fileId = null;
+        for (int i = 0; i < 3; i++) { // 最多重试3次
+            try {
+                fileId = fileObjectService.saveObj(createReq);
+                break;
+            } catch (DataIntegrityViolationException e) {
+                // 文件名已存在，尝试重命名
+                String extension = FilenameUtils.getExtension(originalFilename);
+                String baseName = FilenameUtils.getBaseName(originalFilename);
+                originalFilename = baseName + "_" + ShortIdGenerator.generate(6)
+                    + (extension.isEmpty() ? "" : "." + extension);
+                createReq.setOriginalName(originalFilename);
+            }
+        }
+        if (fileId == null) {
+            throw new ServerException("上传文件失败，请稍后再试");
+        }
+        return fileId;
     }
 
 
@@ -438,96 +464,10 @@ public class FileManagerImpl implements FileManager {
             }
 
         }
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getUploadTime));
-        // 在此处添加重命名逻辑
-        renameDuplicateOriginalNames(fileNodes);
         // 先按照文件夹进行排序，再按照上传时间进行排序
         fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
 
         return fileNodes;
-    }
-
-    /**
-     * 对 FileObject 列表中的重复 originalName 进行重命名，并将结果存储在 displayName 字段中。
-     * 例如：[a.txt, b.txt, a.txt] -> [a.txt, b.txt, a.txt(1)]
-     *
-     * @param fileNodeResps 从数据库查询出的文件对象列表
-     */
-    private void renameDuplicateOriginalNames(List<FileNodeResp> fileNodeResps) {
-        if (CollectionUtil.isEmpty(fileNodeResps)) {
-            return;
-        }
-        Set<String> existNames = new HashSet<>();
-
-        for (FileNodeResp fileNodeResp : fileNodeResps) {
-            String name = fileNodeResp.getName();
-            if (existNames.contains(name)) {
-                // 如果已经出现过，进行重命名
-                String newName = generateNewName(fileNodeResp.getId(), name);
-                fileNodeResp.setName(newName);
-            } else {
-                // 第一次出现，直接使用原始名称
-                fileNodeResp.setName(name);
-                // 更新这个名称
-                existNames.add(name);
-            }
-
-        }
-    }
-
-    /**
-     * 递归地重命名文件树中每个文件夹下的同名文件。
-     *
-     * @param node 当前遍历到的树节点（通常从根节点开始）
-     */
-    public void renameDuplicateFilesInTree(FileTreeNode node) {
-        // 1. 安全检查：如果节点为空，或者是文件（没有子节点），则直接返回
-        if (node == null || node.getChildren() == null || node.getChildren().isEmpty()) {
-            return;
-        }
-
-        // 2. 处理当前节点的直属子节点
-        Set<String> existNames = new HashSet<>();
-        List<FileTreeNode> children = node.getChildren();
-
-        for (FileTreeNode child : children) {
-            // 只对文件类型的子节点进行重命名
-            if (FileKind.FILE.getValue().equals(child.getType())) {
-                String originalName = child.getName();
-
-                if (existNames.contains(originalName)) {
-                    // 发现重名文件，生成新名字并更新
-                    String newName = generateNewName(child.getId(), originalName);
-                    child.setName(newName); // 更新节点名称
-                } else {
-                    existNames.add(originalName);
-                }
-            } else if (FileKind.FOLDER.getValue().equals(child.getType())) {
-                // 对子文件夹递归调用同样的方法
-                renameDuplicateFilesInTree(child);
-            }
-        }
-        children.sort(Comparator.comparing(FileTreeNode::getId).reversed());
-    }
-
-    /**
-     * 根据原始文件名和计数生成新文件名。
-     *
-     * @param id
-     * @param originalName 原始文件名
-     * @return 生成的新文件名
-     */
-    private String generateNewName(Long id, String originalName) {
-        int dotIndex = originalName.lastIndexOf('.');
-        if (dotIndex != -1) {
-            // 文件有扩展名
-            String nameWithoutExtension = originalName.substring(0, dotIndex);
-            String extension = originalName.substring(dotIndex);
-            return String.format("%s_%s%s", nameWithoutExtension, id, extension);
-        } else {
-            // 文件没有扩展名
-            return String.format("%s_%s", originalName, id);
-        }
     }
 
     private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
@@ -589,7 +529,6 @@ public class FileManagerImpl implements FileManager {
         String path = getPath(LoginUserUtils.getLoginUserInfo());
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
-        fileObjects.sort(Comparator.comparing(FileObject::getCreateTime));
         // 4. 遍历对象并构建树
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
@@ -610,7 +549,6 @@ public class FileManagerImpl implements FileManager {
             }
 
         }
-        renameDuplicateFilesInTree(root);
         return root;
     }
 
@@ -682,5 +620,32 @@ public class FileManagerImpl implements FileManager {
         return Optional.ofNullable(fileObjectService.getById(fileId))
             .map(FileObject::getFileStatus)
             .orElse(null);
+    }
+
+    @Override
+    public void reIndexParse(Long fileId) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (Objects.isNull(fileObject)) {
+            throw new ClientException("文件不存在");
+        }
+        String originalName = fileObject.getOriginalName();
+        String subCategory = fileObject.getSubCategory();
+        Integer categoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+        if (!(originalName.endsWith(".xlsx") || originalName.endsWith(".xls") || originalName.endsWith(".csv"))
+            || (categoryCode.equals(Integer.parseInt(subCategory)))
+            || (SubCategoryEnum.TAG_HISTORICAL_DATA.getCode().equals(Integer.parseInt(subCategory)))) {
+            throw new ClientException("暂不支持此文件操作");
+        }
+        Integer unparsedValue = FileStatus.UNPARSED.getValue();
+        if (!unparsedValue.equals(fileObject.getFileStatus())) {
+            fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+                .set(FileObject::getFileStatus, unparsedValue)
+                .eq(AutoIdEntity::getId, fileId));
+        }
+        doFileProcess(fileId, LoginUserUtils.getLoginUserInfo().getId(), originalName, categoryCode);
+        fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+            .set(FileObject::getSubCategory, categoryCode)
+            .set(FileObject::getAbility, FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA))
+            .eq(AutoIdEntity::getId, fileId));
     }
 }

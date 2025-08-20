@@ -51,8 +51,8 @@ public class KnowledgeParseStatusJobHandler  {
     private final IFileRecommendationService fileRecommendationService;
 
     private final Executor JOB_EXECUTOR = new ThreadPoolExecutor(20, 40,
-        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
-        new ThreadPoolExecutor.AbortPolicy());
+        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(500),
+        new ThreadPoolExecutor.CallerRunsPolicy());
 
     @XxlJob("knowledgeParseStatusJob")
     @Job(jobDesc = "定时轮询知识库文件解析状态", scheduleType = ScheduleTypeEnum.FIX_RATE, scheduleConf = "30", alarmEmail = "")

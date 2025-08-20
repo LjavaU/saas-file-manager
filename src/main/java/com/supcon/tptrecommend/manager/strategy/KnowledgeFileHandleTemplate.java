@@ -51,8 +51,8 @@ public class KnowledgeFileHandleTemplate {
      * 知识库解析线程池
      */
     private final Executor KNOWLEDGE_EXECUTOR = new ThreadPoolExecutor(20, 40,
-        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(100),
-        new ThreadPoolExecutor.AbortPolicy());
+        30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(500),
+        new ThreadPoolExecutor.CallerRunsPolicy());
 
     /**
      * 上传到知识库

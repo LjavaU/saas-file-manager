@@ -49,7 +49,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
      * @since 2025/06/18 20:06:18
      */
     @Override
-    public void handleFileAnalysis(Long fileId) {
+    public void handleFileAnalysis(Long fileId,Integer category) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
             log.error("文件不存在，解析任务终止");
@@ -66,7 +66,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
                 if (file == null) {
                     throw new ServerException("临时文件" + originalFilename + "保存失败");
                 }
-                doHandle(file, fileId, originalFilename,fileObject.getUserId());
+                doHandle(file, fileId, originalFilename,fileObject.getUserId(),category);
             } finally {
                 FileUtils.deleteTemporaryFile(file, originalFilename);
             }
@@ -106,11 +106,18 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
      * @param file             文件
      * @param fileId           文件 ID
      * @param originalFilename 原始文件名
-     * @param userId 用户id
+     * @param userId           用户id
+     * @param category
      * @author luhao
      * @since 2025/06/25 19:09:11
      */
-    private void doHandle(File file, Long fileId, String originalFilename, Long userId) {
+    private void doHandle(File file, Long fileId, String originalFilename, Long userId, Integer category) {
+        //TODO: 处理业务报表数据
+        if(Objects.nonNull(category)){
+            Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(category);
+            handlerOptional.ifPresent(businessDataHandler -> businessDataHandler.processDirectly(file, fileId, 0));
+            return;
+        }
         // 获取表头和数据总记录行数
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
         ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);

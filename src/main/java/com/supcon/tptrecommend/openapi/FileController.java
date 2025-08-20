@@ -133,4 +133,15 @@ public class FileController extends BasicController {
     public SupResult<Integer> getFileStatus(@PathVariable Long fileId) {
       return data(fileManager.getFileStatus(fileId));
     }
+
+    @GetMapping("reIndexParse/{fileId}")
+    @ApiOperation("重新进行指标文件解析")
+    @ApiOperationSupport(order = 12, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-重新进行指标文件解析", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Integer> reIndexParse(@PathVariable Long fileId) {
+        fileManager.reIndexParse(fileId);
+        return SupResult.success();
+    }
+
+
 }
