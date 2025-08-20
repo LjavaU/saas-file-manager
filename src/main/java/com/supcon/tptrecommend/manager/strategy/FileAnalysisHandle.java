@@ -6,7 +6,7 @@ public interface FileAnalysisHandle {
 
     /**
      * 获取此策略支持的所有文件类型（文件后缀）。
-     * @return 支持的文件类型后缀集合 (例如, "JPG", "PNG")
+     * @return 支持的文件类型后缀集合 (例如, "xls", "doc")
      * @author luhao
      * @since 2025/06/13 09:35:11
      */
@@ -19,5 +19,5 @@ public interface FileAnalysisHandle {
      * @author luhao
      * @since 2025/06/18 20:05:43
      */
-    void handleFileAnalysis(Long fileId);
+    void handleFileAnalysis(Long fileId,Integer category);
 }

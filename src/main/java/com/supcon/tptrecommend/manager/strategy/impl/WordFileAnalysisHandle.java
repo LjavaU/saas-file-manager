@@ -49,7 +49,7 @@ public class WordFileAnalysisHandle implements FileAnalysisHandle {
     private final MinioUtils minioUtils;
 
     @Override
-    public void handleFileAnalysis(Long fileId) {
+    public void handleFileAnalysis(Long fileId,Integer category) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
             log.error("文件不存在，解析任务终止");

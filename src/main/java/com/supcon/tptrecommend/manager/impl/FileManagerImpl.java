@@ -125,18 +125,18 @@ public class FileManagerImpl implements FileManager {
         Long userId = user.getId();
         ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
 
-        doFileProcess(fileId, userId, originalFilename);
+        doFileProcess(fileId, userId, originalFilename, null);
 
         return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
     }
 
-    private void doFileProcess(Long fileId, Long userId, String originalFilename) {
+    private void doFileProcess(Long fileId, Long userId, String originalFilename, Integer category) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
         if (handler.isPresent()) {
             FileAnalysisHandle fileAnalysisHandle = handler.get();
             try {
                 CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                    fileAnalysisHandle.handleFileAnalysis(fileId);
+                    fileAnalysisHandle.handleFileAnalysis(fileId, category);
                 }), fileExecutor).exceptionally(throwable -> {
                     log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                     markFileAsParseFailed(fileId, userId);
@@ -620,5 +620,32 @@ public class FileManagerImpl implements FileManager {
         return Optional.ofNullable(fileObjectService.getById(fileId))
             .map(FileObject::getFileStatus)
             .orElse(null);
+    }
+
+    @Override
+    public void reIndexParse(Long fileId) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (Objects.isNull(fileObject)) {
+            throw new ClientException("文件不存在");
+        }
+        String originalName = fileObject.getOriginalName();
+        String subCategory = fileObject.getSubCategory();
+        Integer categoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+        if (!(originalName.endsWith(".xlsx") || originalName.endsWith(".xls") || originalName.endsWith(".csv"))
+            || (categoryCode.equals(Integer.parseInt(subCategory)))
+            || (SubCategoryEnum.TAG_HISTORICAL_DATA.getCode().equals(Integer.parseInt(subCategory)))) {
+            throw new ClientException("暂不支持此文件操作");
+        }
+        Integer unparsedValue = FileStatus.UNPARSED.getValue();
+        if (!unparsedValue.equals(fileObject.getFileStatus())) {
+            fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+                .set(FileObject::getFileStatus, unparsedValue)
+                .eq(AutoIdEntity::getId, fileId));
+        }
+        doFileProcess(fileId, LoginUserUtils.getLoginUserInfo().getId(), originalName, categoryCode);
+        fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+            .set(FileObject::getSubCategory, categoryCode)
+            .set(FileObject::getAbility, FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA))
+            .eq(AutoIdEntity::getId, fileId));
     }
 }

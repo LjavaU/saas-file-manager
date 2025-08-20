@@ -33,7 +33,7 @@ public class PdfFileFileAnalysisHandle implements FileAnalysisHandle {
     }
 
     @Override
-    public void handleFileAnalysis( Long fileId) {
+    public void handleFileAnalysis(Long fileId, Integer category) {
         long count = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
             .eq(FileObject::getId, fileId));
         if (count < 1) {
