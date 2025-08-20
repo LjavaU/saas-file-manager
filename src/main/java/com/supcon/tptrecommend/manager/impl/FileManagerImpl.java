@@ -48,9 +48,7 @@ import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -88,6 +86,14 @@ public class FileManagerImpl implements FileManager {
         this.fileAnalysisHandleFactory = fileAnalysisHandleFactory;
         this.fileExecutor = fileExecutor;
     }
+
+    private final Executor delExecutor = new ThreadPoolExecutor(
+            10,
+            20,
+            10,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(50),
+            new ThreadPoolExecutor.DiscardPolicy());
 
     /**
      * 上传文件
@@ -264,13 +270,23 @@ public class FileManagerImpl implements FileManager {
             // 删除文件推荐问题
             fileRecommendationService.remove(Wrappers.<FileRecommendation>lambdaQuery()
                 .eq(FileRecommendation::getFileId, id));
+            removeKnowledge(fileObject);
+        }
+        return true;
+    }
+
+    public void removeKnowledge(FileObject fileObject) {
+        CompletableFuture.runAsync(() -> {
             // 删除文件的知识库
             KnowledgeFileUploadResp resp = knowledgeFeign.deleteKnowledgeBase(String.valueOf(fileObject.getUserId()), fileObject.getBucketName(), fileObject.getObjectName(), fileObject.getTenantId());
             if (Objects.isNull(resp) || resp.getCode() != HttpStatus.HTTP_OK) {
                 log.error("删除文件对应的知识库失败: {}", fileObject.getObjectName());
             }
-        }
-        return true;
+        },delExecutor).exceptionally(throwable -> {
+            log.error("调用知识库删除接口出错", throwable);
+            return null;
+        });
+
     }
 
     private void deleteFileObjectHierarchy(String objectName, long id) {
