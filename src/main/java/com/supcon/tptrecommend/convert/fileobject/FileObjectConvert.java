@@ -68,7 +68,10 @@ public interface FileObjectConvert {
         if (StrUtil.isBlank(thirdLevelCategory)) {
             return null;
         }
-       return TagHistoryCategory.getCategoryByCode(Integer.valueOf(thirdLevelCategory));
+        List<Integer> thirdLevelCategories = Arrays.stream(thirdLevelCategory.split(","))
+            .map(Integer::parseInt)
+            .collect(Collectors.toList());
+        return TagHistoryCategory.getCategoryByCode(thirdLevelCategories);
     }
 
     default String mapSecondCategory(FileObject fileObject) {
@@ -76,7 +79,10 @@ public interface FileObjectConvert {
         if (StrUtil.isBlank(subCategory)) {
             return null;
         }
-        return SubCategoryEnum.fromCode(Integer.parseInt(subCategory));
+        List<Integer> subCategories = Arrays.stream(subCategory.split(","))
+            .map(Integer::parseInt)
+            .collect(Collectors.toList());
+        return SubCategoryEnum.getDescriptionByCodes(subCategories);
     }
 
     default String mapCategoryIdentifier(FileObject fileObject) {

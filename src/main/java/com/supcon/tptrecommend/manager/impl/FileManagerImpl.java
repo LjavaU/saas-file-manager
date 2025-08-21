@@ -31,7 +31,6 @@ import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
 import io.minio.StatObjectResponse;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -41,12 +40,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StopWatch;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -88,12 +89,12 @@ public class FileManagerImpl implements FileManager {
     }
 
     private final Executor delExecutor = new ThreadPoolExecutor(
-            10,
-            20,
-            10,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(50),
-            new ThreadPoolExecutor.DiscardPolicy());
+        10,
+        20,
+        10,
+        TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(50),
+        new ThreadPoolExecutor.DiscardPolicy());
 
     /**
      * 上传文件
@@ -104,7 +105,6 @@ public class FileManagerImpl implements FileManager {
      * @author luhao
      * @date 2025/05/22 14:56:00
      */
-    @SneakyThrows
     @Override
     public FileObjectResp upload(MultipartFile file, String attributes, String path) {
         //  生成对象键 (Object Key)
@@ -122,18 +122,44 @@ public class FileManagerImpl implements FileManager {
         } else {
             objectKey = getPath(user) + uniqueFilename;
         }
-
+        // 1. 创建并启动 StopWatch
+        StopWatch stopWatch = new StopWatch("文件上传");
+        stopWatch.start("文件上传minio");
+        String contentType = file.getContentType();
+        long size = file.getSize();
         // 上传文件到MinIO
         uploadToMinio(file, objectKey);
+        stopWatch.stop();
+        stopWatch.start("文件元数据保存数据库");
         // 保存文件元数据 到数据库
-        Long fileId = saveMetadataToDB(file, user, objectKey, originalFilename);
-        // 通知解析进度【文件上传成功】
+        Long fileId = saveMetadataToDB(contentType, size, user, objectKey, originalFilename);
+        stopWatch.stop();
+        log.warn("上传文件耗时：{}", stopWatch.prettyPrint());
+        // ws推送通知解析进度【文件上传成功】
         Long userId = user.getId();
         ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
-
+        // 异步处理文件
         doFileProcess(fileId, userId, originalFilename, null);
+        return buildFileObjectResp(fileId, user, objectKey, originalFilename, contentType, size);
+    }
 
-        return FileObjectConvert.INSTANCE.convert(fileObjectService.getById(fileId));
+
+    private FileObjectResp buildFileObjectResp(Long fileId, LoginInfoUserDTO user, String objectName, String originalFilename, String contentType, long size) {
+        FileObjectResp fileObjectResp = new FileObjectResp();
+        fileObjectResp.setId(fileId);
+        fileObjectResp.setCreateTime(LocalDateTime.now());
+        fileObjectResp.setUpdateTime(LocalDateTime.now());
+        fileObjectResp.setTenantId(TenantContext.getCurrentTenant());
+        fileObjectResp.setUserId(user.getId());
+        fileObjectResp.setUserName(user.getUsername());
+        fileObjectResp.setObjectName(objectName);
+        fileObjectResp.setOriginalName(originalFilename);
+        fileObjectResp.setBucketName(bucket);
+        fileObjectResp.setContentType(contentType);
+        fileObjectResp.setFileSize(FileObjectConvert.INSTANCE.mapFileSize(size));
+        fileObjectResp.setFileStatus(FileStatus.UNPARSED.getValue());
+        return fileObjectResp;
+
     }
 
     private void doFileProcess(Long fileId, Long userId, String originalFilename, Integer category) {
@@ -180,8 +206,8 @@ public class FileManagerImpl implements FileManager {
      * @since 2025/06/19 10:18:08
      */
     private void uploadToMinio(MultipartFile file, String objectKey) {
-        try {
-            minioUtils.uploadFile(bucket, objectKey, file.getInputStream(), file.getContentType());
+        try (InputStream inputStream = file.getInputStream()) {
+            minioUtils.uploadFile(bucket, objectKey, inputStream, file.getContentType(), file.getSize());
         } catch (Exception e) {
             log.error("文件上传到minio失败: {}", objectKey, e);
             throw new ServerException("文件上传失败");
@@ -191,23 +217,26 @@ public class FileManagerImpl implements FileManager {
     /**
      * 将元数据保存到数据库
      *
-     * @param file             文件
+     * @param contentType      内容类型
+     * @param size             大小
      * @param user             用户
      * @param objectKey        对象键
      * @param originalFilename 原始文件名
      * @return {@link Long }
      * @author luhao
      * @since 2025/06/19 10:18:15
+     *
+     *
      */
-    private Long saveMetadataToDB(MultipartFile file, LoginInfoUserDTO user, String objectKey, String originalFilename) {
+    private Long saveMetadataToDB(String contentType, long size, LoginInfoUserDTO user, String objectKey, String originalFilename) {
         FileObjectCreateReq createReq = FileObjectCreateReq.builder()
             .userId(user.getId())
             .userName(user.getUsername())
             .objectName(objectKey)
             .originalName(originalFilename)
             .bucketName(bucket)
-            .contentType(file.getContentType())
-            .fileSize(file.getSize())
+            .contentType(contentType)
+            .fileSize(size)
             .build();
         Long fileId = null;
         for (int i = 0; i < 3; i++) { // 最多重试3次
@@ -282,7 +311,7 @@ public class FileManagerImpl implements FileManager {
             if (Objects.isNull(resp) || resp.getCode() != HttpStatus.HTTP_OK) {
                 log.error("删除文件对应的知识库失败: {}", fileObject.getObjectName());
             }
-        },delExecutor).exceptionally(throwable -> {
+        }, delExecutor).exceptionally(throwable -> {
             log.error("调用知识库删除接口出错", throwable);
             return null;
         });

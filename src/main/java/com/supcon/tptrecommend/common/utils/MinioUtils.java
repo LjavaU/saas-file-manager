@@ -109,9 +109,12 @@ public class MinioUtils {
      * @param objectName  对象名称（文件在 MinIO 中的路径）
      * @param inputStream 文件输入流
      * @param contentType 文件类型
-     * @throws Exception 上传失败时抛出异常
+     * @param size        大小
+     * @throws Exception 异常
+     * @author luhao
+     * @since 2025/08/21 19:05:54
      */
-    public void uploadFile(String bucketName, String objectName, InputStream inputStream, String contentType) throws Exception {
+    public void uploadFile(String bucketName, String objectName, InputStream inputStream, String contentType,long size) throws Exception {
         if (!bucketExists(bucketName)) {
             makeBucket(bucketName);
         }
@@ -119,7 +122,7 @@ public class MinioUtils {
             PutObjectArgs.builder()
                 .bucket(bucketName)
                 .object(objectName)
-                .stream(inputStream, inputStream.available(), -1)
+                .stream(inputStream, size, -1)
                 .contentType(contentType)
                 .build());
 
