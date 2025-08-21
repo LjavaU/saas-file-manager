@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 业务分类枚举
@@ -38,7 +41,8 @@ public enum SubCategoryEnum {
     EXAM_QUESTION_DATA(21, "考题资料数据"),
     OVERALL_INFORMATION_DEVICE(22, "装置整体信息"),
     CONDITION_INPUT(23, "限制条件输入"),
-    ATMOSPHERIC_PRESSURE_TOWERS(24, "常压塔近期运行数据");
+    ATMOSPHERIC_PRESSURE_TOWERS(24, "常压塔近期运行数据"),
+    KEY_PARAMETERS(25, "关键参数");
 
     private final Integer code;
     private final String description;
@@ -61,6 +65,23 @@ public enum SubCategoryEnum {
             .filter(item -> item.code.equals(code))
             .findFirst()
             .orElse(null);
+    }
+
+    /**
+     * 根据codes 获取 描述
+     *
+     * @param codes 代码
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/21 17:06:28
+     *
+     */
+    public static String getDescriptionByCodes(List<Integer> codes) {
+        return codes.stream()
+            .map(SubCategoryEnum::getByCode)
+            .filter(Objects::nonNull)
+            .map(SubCategoryEnum::getDescription)
+            .collect(Collectors.joining(","));
     }
 
 }
