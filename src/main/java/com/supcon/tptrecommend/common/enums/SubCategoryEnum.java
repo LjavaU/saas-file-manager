@@ -30,19 +30,17 @@ public enum SubCategoryEnum {
     ALARM_TAG_MAPPING_TABLE(10, "报警位号映射表"),
     DYNAMIC_EQUIPMENT_INFO_MODEL(11, "动设备信息模型"),
     TAG_HISTORICAL_DATA(12, "位号历史数据"),
-    PUMP_ANOMALY_DETECTION_DATA(13, "泵异常检测数据"),
-    VALVE_ANOMALY_DETECTION_DATA(14, "阀门异常检测数据"),
-    HEAT_EXCHANGER_NETWORK_DESIGN_INFO(15, "换热网络设计信息"),
-    OPERATING_PROCEDURE_DEVICE(16, "操作规程装置"),
-    PROCESS_INDEX_COMPOSITION(17, "工艺指标组成"),
-    DCS_POINT_TABLE_FB(18, "DCS点表FB"),
-    EARLY_WARNING_PROCESS_ABNORMALITIES(19, "工艺异常预警"),
-    METRICS_BUSINESS_REPORT_DATA(20, "指标业务报表数据"),
-    EXAM_QUESTION_DATA(21, "考题资料数据"),
-    OVERALL_INFORMATION_DEVICE(22, "装置整体信息"),
-    CONDITION_INPUT(23, "限制条件输入"),
-    ATMOSPHERIC_PRESSURE_TOWERS(24, "常压塔近期运行数据"),
-    KEY_PARAMETERS(25, "关键参数");
+    HEAT_EXCHANGER_NETWORK_DESIGN_INFO(13, "换热网络设计信息"),
+    OPERATING_PROCEDURE_DEVICE(14, "操作规程装置"),
+    PROCESS_INDEX_COMPOSITION(15, "工艺指标组成"),
+    DCS_POINT_TABLE_FB(16, "DCS点表FB"),
+    EARLY_WARNING_PROCESS_ABNORMALITIES(17, "工艺异常预警"),
+    METRICS_BUSINESS_REPORT_DATA(18, "指标业务报表数据"),
+    EXAM_QUESTION_DATA(19, "考题资料数据"),
+    OVERALL_INFORMATION_DEVICE(20, "装置整体信息"),
+    CONDITION_INPUT(21, "限制条件输入"),
+    ATMOSPHERIC_PRESSURE_TOWERS(22, "近期运行数据"),
+    KEY_PARAMETERS(23, "关键参数");
 
     private final Integer code;
     private final String description;
