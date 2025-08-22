@@ -8,6 +8,7 @@ import com.supcon.systembase.logapi.enums.OperateTypeEnum;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
+import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.FileManager;
@@ -46,8 +47,8 @@ public class FileController extends BasicController {
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile, String attributes, String path) {
-        return data(fileManager.upload(multipartFile, attributes, path));
+    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile,  String path) {
+        return data(fileManager.upload(multipartFile, path));
     }
 
     @DeleteMapping(value = "delete/{id}")
@@ -140,6 +141,16 @@ public class FileController extends BasicController {
     @SysServiceLog(moduleName = "文件管理-重新进行指标文件解析", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
     public SupResult<Integer> reIndexParse(@PathVariable Long fileId) {
         fileManager.reIndexParse(fileId);
+        return SupResult.success();
+    }
+
+
+    @PostMapping("convertFileToUpload")
+    @ApiOperation("把二维数组转换为文件")
+    @ApiOperationSupport(order = 13, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-把二维数组转换为文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Integer> convertFileToUpload(@RequestBody ExcelUploadRequest request) {
+        fileManager.convertFileToUpload(request);
         return SupResult.success();
     }
 

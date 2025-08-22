@@ -39,27 +39,6 @@ public class FileUtils {
         return df.format(size / Math.pow(1024, digitGroups)) + " " + units[digitGroups];
     }
 
-    /**
-     * 获取文件后缀
-     *
-     * @param originalFilename 原始文件名
-     * @return {@link String }
-     * @author luhao
-     * @since 2025/06/19 10:18:57
-     */
-    public static String getFileSuffix(String originalFilename) {
-        if (originalFilename == null) {
-            return "";
-        }
-
-        int dotIndex = originalFilename.lastIndexOf('.');
-        if (dotIndex == -1) {
-            return "";
-        }
-
-        return originalFilename.substring(originalFilename.lastIndexOf(".") + 1);
-    }
-
 
     /**
      * 检测文件中的字符集
@@ -146,6 +125,16 @@ public class FileUtils {
         return objectName.substring(objectName.lastIndexOf("/") + 1);
     }
 
+    /**
+     * 删除临时文件
+     *
+     * @param file             文件
+     * @param originalFilename 原始文件名
+     * @author luhao
+     * @since 2025/08/22 13:55:51
+     *
+     *
+     */
     public static void deleteTemporaryFile(File file, String originalFilename) {
         if (file == null) {
             return;

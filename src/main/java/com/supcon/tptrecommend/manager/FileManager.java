@@ -3,6 +3,7 @@ package com.supcon.tptrecommend.manager;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
+import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,13 +18,12 @@ public interface FileManager {
      * 上传
      *
      * @param multipartFile Multipart 文件
-     * @param attributes
      * @param path  文件路径
      * @return {@link Boolean }
      * @author luhao
      * @since 2025/06/12 16:26:40
      */
-    FileObjectResp upload(MultipartFile multipartFile, String attributes,String path);
+    FileObjectResp upload(MultipartFile multipartFile,String path);
 
     /**
      * 删除
@@ -103,7 +103,7 @@ public interface FileManager {
 
 
     /**
-     * 更新文件属性
+     * 更新文件类别、能力属性
      *
      * @param req 请求体
      * @return boolean
@@ -123,5 +123,25 @@ public interface FileManager {
      */
     Integer getFileStatus(Long fileId);
 
+    /**
+     * 重新进行指标文件的解析
+     *
+     * @param fileId 文件 ID
+     * @author luhao
+     * @since 2025/08/22 13:16:40
+     *
+     *
+     */
     void reIndexParse(Long fileId);
+
+    /**
+     * 把结构内容转换为文件进行上传
+     *
+     * @param request 请求
+     * @author luhao
+     * @since 2025/08/22 13:16:59
+     *
+     *
+     */
+    void convertFileToUpload(ExcelUploadRequest request);
 }

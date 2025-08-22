@@ -11,7 +11,6 @@ import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.Constants;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
-import com.supcon.tptrecommend.common.utils.BooleanValidator;
 import com.supcon.tptrecommend.common.utils.DateParserUtil;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.feign.DataHubFeign;
@@ -104,7 +103,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
             data.remove(0);
             LocalDateTime dateTime = DateParserUtil.parse(time);
             for (Map.Entry<Integer, String> entry : data.entrySet()) {
-                if (!(NumberUtil.isNumber(entry.getValue()) || BooleanValidator.isBooleanString(entry.getValue())) || entry.getKey() >= headers.size()) {
+                if (entry.getKey() >= headers.size()) {
                     continue;
                 }
                 String tagName = headers.get(entry.getKey());

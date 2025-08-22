@@ -5,6 +5,9 @@ import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.ExcelWriter;
+import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -17,9 +20,13 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.enums.*;
+import com.supcon.tptrecommend.common.enums.FileCategoryAbilityAssociation;
+import com.supcon.tptrecommend.common.enums.FileKind;
+import com.supcon.tptrecommend.common.enums.FileStatus;
+import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
+import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.entity.FileRecommendation;
@@ -40,10 +47,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StopWatch;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -99,48 +107,55 @@ public class FileManagerImpl implements FileManager {
     /**
      * 上传文件
      *
-     * @param file       文件
-     * @param attributes 属性
+     * @param file 文件
      * @return {@link Boolean }
      * @author luhao
      * @date 2025/05/22 14:56:00
      */
     @Override
-    public FileObjectResp upload(MultipartFile file, String attributes, String path) {
-        //  生成对象键 (Object Key)
+    public FileObjectResp upload(MultipartFile file, String path) {
         String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
+        LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
+        // 生成对象键 (Object Key)
+        String objectKey = generateUniqueObjectKey(path, originalFilename, user.getUsername());
+        String contentType = file.getContentType();
+        long size = file.getSize();
+        // 上传文件到MinIO
+        uploadToMinio(file, objectKey);
+        // 保存文件元数据 到数据库
+        Long fileId = saveMetadataToDB(contentType, size, user, objectKey, originalFilename);
+        Long userId = user.getId();
+        // 异步处理文件
+        doFileProcess(fileId, userId, originalFilename, null);
+        return buildFileObjectResp(fileId, user, objectKey, originalFilename, contentType, size);
+    }
+
+    /**
+     * 生成唯一对象键
+     *
+     * @param path             路径
+     * @param originalFilename 原始文件名
+     * @param userName         用户
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/22 10:33:39
+     *
+     */
+    private String generateUniqueObjectKey(String path, String originalFilename, String userName) {
         // 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
-        LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
+
         // 文件全路径
         String objectKey;
         if (StrUtil.isNotBlank(path)) {
             if (!path.endsWith(FILE_SPLIT)) {
                 path += FILE_SPLIT;
             }
-            objectKey = getPath(user) + path + uniqueFilename;
+            objectKey = getPath(userName) + path + uniqueFilename;
         } else {
-            objectKey = getPath(user) + uniqueFilename;
+            objectKey = getPath(userName) + uniqueFilename;
         }
-        // 1. 创建并启动 StopWatch
-        StopWatch stopWatch = new StopWatch("文件上传");
-        stopWatch.start("文件上传minio");
-        String contentType = file.getContentType();
-        long size = file.getSize();
-        // 上传文件到MinIO
-        uploadToMinio(file, objectKey);
-        stopWatch.stop();
-        stopWatch.start("文件元数据保存数据库");
-        // 保存文件元数据 到数据库
-        Long fileId = saveMetadataToDB(contentType, size, user, objectKey, originalFilename);
-        stopWatch.stop();
-        log.warn("上传文件耗时：{}", stopWatch.prettyPrint());
-        // ws推送通知解析进度【文件上传成功】
-        Long userId = user.getId();
-        ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
-        // 异步处理文件
-        doFileProcess(fileId, userId, originalFilename, null);
-        return buildFileObjectResp(fileId, user, objectKey, originalFilename, contentType, size);
+        return objectKey;
     }
 
 
@@ -163,7 +178,7 @@ public class FileManagerImpl implements FileManager {
     }
 
     private void doFileProcess(Long fileId, Long userId, String originalFilename, Integer category) {
-        Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FileUtils.getFileSuffix(originalFilename));
+        Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FilenameUtils.getExtension(originalFilename));
         if (handler.isPresent()) {
             FileAnalysisHandle fileAnalysisHandle = handler.get();
             try {
@@ -263,13 +278,13 @@ public class FileManagerImpl implements FileManager {
      * 获取路径
      * 按照租户/用户名/文件的方式
      *
-     * @param user 用户
+     * @param userName 用户
      * @return {@link String }
      * @author luhao
      * @date 2025/05/22 14:11:08
      */
-    public String getPath(LoginInfoUserDTO user) {
-        return TenantContext.getCurrentTenant() + FILE_SPLIT + user.getUsername() + FILE_SPLIT;
+    public String getPath(String userName) {
+        return TenantContext.getCurrentTenant() + FILE_SPLIT + userName + FILE_SPLIT;
 
 
     }
@@ -437,7 +452,7 @@ public class FileManagerImpl implements FileManager {
         }
         // 确保 folderName 以斜杠结尾
         folderName += FILE_SPLIT;
-        String path = getPath(user) + folderName;
+        String path = getPath(user.getUsername()) + folderName;
         saveFolderToDB(user, path);
         minioUtils.createFolder(bucket, path);
         return true;
@@ -472,7 +487,7 @@ public class FileManagerImpl implements FileManager {
      */
     public List<FileNodeResp> listFiles(String path) {
         if (StrUtil.isBlank(path)) {
-            path = getPath(LoginUserUtils.getLoginUserInfo());
+            path = getPath(LoginUserUtils.getLoginUserInfo().getUsername());
         }
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
@@ -571,7 +586,7 @@ public class FileManagerImpl implements FileManager {
         FileTreeNode root = new FileTreeNode(0L, "文件库", FileKind.FOLDER.getValue(), "", null, null);
 
         // 3. 递归列出所有对象
-        String path = getPath(LoginUserUtils.getLoginUserInfo());
+        String path = getPath(LoginUserUtils.getLoginUserInfo().getUsername());
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
             .likeRight(FileObject::getObjectName, path));
         // 4. 遍历对象并构建树
@@ -597,68 +612,133 @@ public class FileManagerImpl implements FileManager {
         return root;
     }
 
+    /**
+     * 更新文件类别、能力属性
+     *
+     * @param req 请求体
+     * @return boolean
+     * @author luhao
+     * @since 2025/08/22 13:33:48
+     *
+     */
     @Override
     public boolean update(FileAttributesUpdatedReq req) {
-        Long fileId = req.getFileId();
-        String objectName = req.getObjectName();
-        if (Objects.isNull(fileId) && StrUtil.isBlank(objectName)) {
+        // 校验请求
+        validateRequest(req);
+        // 查找文件是否存在
+        FileObject fileObject = findFileOrFail(req.getFileId(), req.getObjectName());
+
+        // 为所有更改准备一个更新包装器。
+        LambdaUpdateWrapper<FileObject> updateWrapper = new LambdaUpdateWrapper<>();
+
+        // 处理类别更新（子类别和三级类别）。
+        updateCategoryProperties(req.getCategory(), fileObject, updateWrapper);
+
+        // 处理能力更新。
+        updateAbilityProperty(req.getAbility(), fileObject, updateWrapper);
+
+        // 仅当有更改时才执行单个数据库更新。
+        if (StrUtil.isBlank(updateWrapper.getSqlSet())) {
+            return true;
+        }
+        // 为更新添加 WHERE 子句
+        updateWrapper.eq(Objects.nonNull(req.getFileId()), FileObject::getId, req.getFileId())
+            .eq(StrUtil.isNotBlank(req.getObjectName()), FileObject::getObjectName, req.getObjectName());
+
+        fileObjectService.update(new FileObject(), updateWrapper);
+        return true;
+
+
+    }
+
+    private void validateRequest(FileAttributesUpdatedReq req) {
+        if (Objects.isNull(req.getFileId()) && StrUtil.isBlank(req.getObjectName())) {
             throw new ClientException("必须提供文件ID或文件全路径参数中的任意一个");
         }
-        String ability = req.getAbility();
-        String category = req.getCategory();
-        if (StrUtil.isAllBlank(ability, category)) {
+        if (StrUtil.isAllBlank(req.getAbility(), req.getCategory())) {
             throw new ClientException("文件类别或者属性不能为空");
         }
-        FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
+    }
+
+    private FileObject findFileOrFail(Long fileId, String objectName) {
+        FileObject fileObject = fileObjectService.limitOne(Wrappers.<FileObject>lambdaQuery()
             .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName)
             .eq(Objects.nonNull(fileId), FileObject::getId, fileId));
         if (Objects.isNull(fileObject)) {
             throw new ClientException("文件不存在");
         }
-        // 根据类别标识获取类别
-        FileCategoryAbilityAssociation abilityAssociation = FileCategoryAbilityAssociation.getCategoryByIdentifier(category);
-        if (Objects.nonNull(abilityAssociation)) {
-            // 获取类别的二级分类
-            SubCategoryEnum categoryType = abilityAssociation.getCategoryType();
-            // 获取类别的三级分类
-            TagHistoryCategory thirdCategoryType = abilityAssociation.getTagHistoryCategory();
-            LambdaUpdateWrapper<FileObject> lambdaUpdate = Wrappers.lambdaUpdate();
-
-            // 更新二级分类
-            Optional.ofNullable(categoryType)
-                .map(type -> mergeUpdatedProperties(String.valueOf(type.getCode()), fileObject.getSubCategory()))
-                .ifPresent(subcategory -> lambdaUpdate.set(FileObject::getSubCategory, subcategory));
-            //更新三级分类
-            Optional.ofNullable(thirdCategoryType)
-                .map(type -> mergeUpdatedProperties(String.valueOf(type.getCode()), fileObject.getThirdLevelCategory()))
-                .ifPresent(thirdCategory -> lambdaUpdate.set(FileObject::getThirdLevelCategory, thirdCategory));
-            fileObjectService.update(new FileObject(), lambdaUpdate
-                .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
-                .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
-        }
-        String updateAbility = mergeUpdatedProperties(ability, fileObject.getAbility());
-        if (Objects.nonNull(updateAbility)) {
-            fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-                .set(FileObject::getAbility, updateAbility)
-                .eq(Objects.nonNull(fileId), AutoIdEntity::getId, fileId)
-                .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName));
-
-        }
-        return true;
+        return fileObject;
     }
 
-    private String mergeUpdatedProperties(String updateProperty, String sourceProperty) {
-        if (StrUtil.isBlank(updateProperty)) {
+    /**
+     * 将类别相关字段添加到更新包装器。
+     */
+    private void updateCategoryProperties(String categoryIdentifier, FileObject fileObject, LambdaUpdateWrapper<FileObject> wrapper) {
+        if (StrUtil.isBlank(categoryIdentifier)) {
+            return;
+        }
+
+        FileCategoryAbilityAssociation association = FileCategoryAbilityAssociation.getCategoryByIdentifier(categoryIdentifier);
+        if (association != null) {
+            // 更新 sub-category (二级分类)
+            Optional.ofNullable(association.getCategoryType())
+                .map(type -> mergeProperties(String.valueOf(type.getCode()), fileObject.getSubCategory()))
+                .ifPresent(merged -> wrapper.set(FileObject::getSubCategory, merged));
+
+            // 更新 third-level category (三级分类)
+            Optional.ofNullable(association.getTagHistoryCategory())
+                .map(type -> mergeProperties(String.valueOf(type.getCode()), fileObject.getThirdLevelCategory()))
+                .ifPresent(merged -> wrapper.set(FileObject::getThirdLevelCategory, merged));
+        }
+    }
+
+    /**
+     * 将能力字段添加到更新包装器。
+     */
+    private void updateAbilityProperty(String newAbility, FileObject fileObject, LambdaUpdateWrapper<FileObject> wrapper) {
+        String mergedAbility = mergeProperties(newAbility, fileObject.getAbility());
+        if (mergedAbility != null) {
+            wrapper.set(FileObject::getAbility, mergedAbility);
+        }
+    }
+
+    /**
+     * 合并新的和现有的逗号分隔属性，确保唯一性。
+     *
+     * @param newProperties      要添加的新类别
+     * @param existingProperties 现有的已存在类别.
+     * @return {@link String } 合并后的类别
+     * @author luhao
+     * @since 2025/08/22 13:28:36
+     *
+     */
+    private String mergeProperties(String newProperties, String existingProperties) {
+        // 如果没有新属性，则表示不应对此字段进行更新。
+        if (StrUtil.isBlank(newProperties)) {
             return null;
         }
-        Stream<String> existPropertyStream = StrUtil.isNotBlank(updateProperty) ? Arrays.stream(updateProperty.split(",")) : Stream.empty();
-        Stream<String> newPropertyStream = StrUtil.isNotBlank(sourceProperty) ? Arrays.stream(sourceProperty.split(",")) : Stream.empty();
-        return Stream.concat(existPropertyStream, newPropertyStream)
+
+        // 使用 LinkedHashSet 来维护插入顺序并保证唯一性。
+        Set<String> combined = new LinkedHashSet<>();
+
+        // 首先添加新属性.
+        Stream.of(newProperties.split(","))
             .map(String::trim)
             .filter(StrUtil::isNotBlank)
-            .distinct()
-            .collect(Collectors.joining(","));
+            .forEach(combined::add);
+
+        // 然后，添加现有属性。
+        if (StrUtil.isNotBlank(existingProperties)) {
+            Stream.of(existingProperties.split(","))
+                .map(String::trim)
+                .filter(StrUtil::isNotBlank)
+                .forEach(combined::add);
+        }
+
+        return String.join(",", combined);
     }
+
+
 
     @Override
     public Integer getFileStatus(Long fileId) {
@@ -667,31 +747,137 @@ public class FileManagerImpl implements FileManager {
             .orElse(null);
     }
 
+    /**
+     * 重新进行指标文件的解析
+     *
+     * @param fileId 文件 ID
+     * @author luhao
+     * @since 2025/08/22 13:18:52
+     *
+     *
+     */
     @Override
     public void reIndexParse(Long fileId) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
             throw new ClientException("文件不存在");
         }
-        String originalName = fileObject.getOriginalName();
-        String subCategory = fileObject.getSubCategory();
-        Integer indexCategoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
-        Integer tagHistoryCode = SubCategoryEnum.TAG_HISTORICAL_DATA.getCode();
-        if (!(originalName.endsWith(".xlsx") || originalName.endsWith(".xls") || originalName.endsWith(".csv"))
-            || (StrUtil.isNotBlank(subCategory) && (indexCategoryCode.equals(Integer.parseInt(subCategory))
-            || (tagHistoryCode.equals(Integer.parseInt(subCategory)))))) {
-            throw new ClientException("暂不支持此文件操作");
-        }
-        Integer unparsedValue = FileStatus.UNPARSED.getValue();
-        if (!unparsedValue.equals(fileObject.getFileStatus())) {
+        // 校验是否支持此操作
+        validateFileForReIndex(fileObject);
+        Integer unparsedStatus = FileStatus.UNPARSED.getValue();
+        // 如果文件状态不是未解析状态，则将文件状态设置为未解析状态
+        if (!unparsedStatus.equals(fileObject.getFileStatus())) {
             fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-                .set(FileObject::getFileStatus, unparsedValue)
+                .set(FileObject::getFileStatus, unparsedStatus)
                 .eq(AutoIdEntity::getId, fileId));
         }
-        doFileProcess(fileId, LoginUserUtils.getLoginUserInfo().getId(), originalName, indexCategoryCode);
+        Long userId = LoginUserUtils.getLoginUserInfo().getId();
+        String originalName = fileObject.getOriginalName();
+        Integer targetCategoryCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+
+        // 根据目标类型处理文件
+        doFileProcess(fileId, userId, originalName, targetCategoryCode);
+
+        // 更新元数据
+        updateFileMetadataAfterReIndex(fileId, targetCategoryCode);
+
+
+    }
+
+    private void updateFileMetadataAfterReIndex(Long fileId, Integer targetCategoryCode) {
         fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
-            .set(FileObject::getSubCategory, indexCategoryCode)
+            .set(FileObject::getSubCategory, targetCategoryCode)
             .set(FileObject::getAbility, FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA))
             .eq(AutoIdEntity::getId, fileId));
+    }
+
+    private void validateFileForReIndex(FileObject fileObject) {
+        if (!isSupportedFileType(fileObject.getOriginalName())) {
+            throw new ClientException("文件类型不支持。");
+        }
+        if (isRestrictedSubCategory(fileObject.getSubCategory())) {
+            throw new ClientException("此文件是指标业务报表或位号历史数据，无需重复操作。");
+        }
+    }
+
+    private boolean isRestrictedSubCategory(String subCategory) {
+        if (StrUtil.isBlank(subCategory)) {
+            return false;
+        }
+        Integer metricsBusinessReportCode = SubCategoryEnum.METRICS_BUSINESS_REPORT_DATA.getCode();
+        Integer tagHistoricalDataCode = SubCategoryEnum.TAG_HISTORICAL_DATA.getCode();
+        try {
+            Integer subCategoryCode = Integer.parseInt(subCategory);
+            return metricsBusinessReportCode.equals(subCategoryCode) || tagHistoricalDataCode.equals(subCategoryCode);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+
+    private boolean isSupportedFileType(String originalName) {
+        if (StrUtil.isBlank(originalName)) {
+            return false;
+        }
+        List<String> supportedExtensions = Arrays.asList(".xlsx", ".xls", ".csv");
+        return supportedExtensions.stream().anyMatch(originalName::endsWith);
+    }
+
+
+    /**
+     * 把结构内容转换为文件进行上传
+     *
+     * @param request 请求
+     * @author luhao
+     * @since 2025/08/22 13:17:45
+     *
+     *
+     */
+    @Override
+    public void convertFileToUpload(ExcelUploadRequest request) {
+        // 1. 使用ByteArrayOutputStream在内存中生成Excel
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        // 创建ExcelWriter对象
+        try (ExcelWriter excelWriter = EasyExcel.write(outputStream).build()) {
+            int sheetNo = 0;
+            // 遍历Map来创建多个Sheet
+            for (Map.Entry<String, List<List<String>>> entry : request.getContent().entrySet()) {
+                String sheetName = entry.getKey();
+                List<List<String>> data = entry.getValue();
+                // 创建一个Sheet
+                WriteSheet writeSheet = EasyExcel.writerSheet(sheetNo++, sheetName).build();
+                // 将数据写入Sheet
+                excelWriter.write(data, writeSheet);
+            }
+        } catch (Exception e) {
+            log.error("JSON转excel失败", e);
+            throw new ClientException("转换excel过程失败");
+        }
+        // 2. 上传到MinIO
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray())) {
+            LoginInfoUserDTO loginUserInfo = LoginUserUtils.getLoginUserInfo();
+            String completeFileName = completeFileName(request.getFileName());
+            // 生成唯一对象名称
+            String objectKey = generateUniqueObjectKey(null, completeFileName, loginUserInfo.getUsername());
+            String contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            int size = inputStream.available();
+            // 上传文件
+            minioUtils.uploadFile(bucket, objectKey, inputStream, contentType, size);
+            // 保存元数据
+            Long fileId = saveMetadataToDB(contentType, size, loginUserInfo, objectKey, completeFileName);
+            // 创建文件处理任务
+            doFileProcess(fileId, loginUserInfo.getId(), completeFileName, null);
+        } catch (io.minio.errors.MinioException e) {
+            throw new ServerException("文件上传失败");
+        } catch (Exception e) {
+            throw new ServerException("上传文件过程中发生未知异常");
+        }
+
+
+    }
+
+    private String completeFileName(String fileName) {
+        return fileName.endsWith(".xlsx") ? fileName : fileName + ".xlsx";
     }
 }

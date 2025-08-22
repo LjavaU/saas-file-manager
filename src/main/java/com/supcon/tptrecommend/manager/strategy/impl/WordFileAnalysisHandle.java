@@ -8,6 +8,8 @@ import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
 import com.supcon.tptrecommend.common.enums.TagHistoryCategory;
 import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.common.utils.MinioUtils;
+import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
+import com.supcon.tptrecommend.common.utils.RandomUtil;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.feign.LlmFeign;
 import com.supcon.tptrecommend.feign.entity.llm.FileClassifyReq;
@@ -55,6 +57,9 @@ public class WordFileAnalysisHandle implements FileAnalysisHandle {
             log.error("文件不存在，解析任务终止");
             return;
         }
+
+        // 通知解析进度
+        ProcessProgressSupport.notifyParseProcessing(fileId, fileObject.getUserId(), RandomUtil.getRandomPercentage(5, 10));
         // 上传知识库
         knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId);
         String objectName = fileObject.getObjectName();

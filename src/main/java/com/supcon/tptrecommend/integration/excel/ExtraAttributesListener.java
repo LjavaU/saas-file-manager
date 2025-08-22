@@ -1,11 +1,9 @@
 package com.supcon.tptrecommend.integration.excel;
 
-import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import lombok.Getter;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +41,6 @@ public class ExtraAttributesListener  extends AnalysisEventListener<Map<Integer,
         originalHeaders.add(new ArrayList<>(headMap.values()));
     }
 
-    public static void main(String[] args) {
-        File file = new File("C:\\Users\\luhao1\\Desktop\\文件测试\\换热网络设计信息输入模板.xlsx");
-        EasyExcel.read(file, new ExtraAttributesListener()).headRowNumber(5).sheet().doRead();
-    }
+
 
 }

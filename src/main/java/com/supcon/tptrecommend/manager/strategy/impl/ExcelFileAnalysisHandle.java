@@ -25,6 +25,7 @@ import com.supcon.tptrecommend.manager.strategy.MapperFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -55,6 +56,8 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
             log.error("文件不存在，解析任务终止");
             return;
         }
+        // 通知解析进度
+        ProcessProgressSupport.notifyParseProcessing(fileId, fileObject.getUserId(), RandomUtil.getRandomPercentage(5, 10));
 
         if (FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
             String originalFilename = fileObject.getOriginalName();
@@ -121,7 +124,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
         // 获取表头和数据总记录行数
         ExtraAttributesListener extraAttributesListener = new ExtraAttributesListener();
         ExcelReaderBuilder readerBuilder = EasyExcel.read(file, extraAttributesListener);
-        String fileSuffix = FileUtils.getFileSuffix(originalFilename);
+        String fileSuffix = FilenameUtils.getExtension(originalFilename);
         setCsvFileEncoding(file, fileSuffix, readerBuilder);
         readerBuilder.sheet().headRowNumber(5).doRead();
         // 获取表头
