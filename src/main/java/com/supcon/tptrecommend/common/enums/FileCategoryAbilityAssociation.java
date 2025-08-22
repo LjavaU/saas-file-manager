@@ -32,8 +32,6 @@ public enum FileCategoryAbilityAssociation {
     TAG_CONFIGURATION_DEFAULT(TAG_CONFIGURATION, null, null, "位号组态", null, null),
     ALARM_TAG_MAPPING_TABLE_DEFAULT(ALARM_TAG_MAPPING_TABLE, null, null, "报警位号映射表", null, null),
     DYNAMIC_EQUIPMENT_INFO_MODEL_DEFAULT(DYNAMIC_EQUIPMENT_INFO_MODEL, null, null, "动设备信息模型", null, null),
-    PUMP_ANOMALY_DETECTION_DATA_DEFAULT(PUMP_ANOMALY_DETECTION_DATA, null, null, "泵异常检测数据", null, null),
-    VALVE_ANOMALY_DETECTION_DATA_DEFAULT(VALVE_ANOMALY_DETECTION_DATA, null, null, "阀门异常检测数据", null, null),
     OPERATING_PROCEDURE_DEVICE_DEFAULT(OPERATING_PROCEDURE_DEVICE, null, null, "操作规程装置", null, null),
     PROCESS_INDEX_COMPOSITION_DEFAULT(PROCESS_INDEX_COMPOSITION, null, null, "工艺指标组成", null, null),
     DCS_POINT_TABLE_FB_DEFAULT(DCS_POINT_TABLE_FB, null, null, "DCS点表FB", null, null),
@@ -53,12 +51,19 @@ public enum FileCategoryAbilityAssociation {
     HEN_REDESIGN_HISTORY_INFO_CHECK(TAG_HISTORICAL_DATA, HEAT_EXCHANGER_NETWORK_OPERATION_INFO, "hen_redesign_history", "换热网络运行信息", "info_check", "上传数据与校验"),
     F_SPC_DATA_SPC_CSV_UPLOAD(TAG_HISTORICAL_DATA, TAG_DATA_FILE, "f_spc_data", "位号数据文件", "spc_csv_upload", "数据处理与质量判断/数据质量分析"),
     F_SPC_PID_DATA_SPC_PID_CSV_UPLOAD(TAG_HISTORICAL_DATA, CIRCUIT_DATA_FILE, "f_spc_pid_data", "回路数据文件", "spc_PID_csv_upload", "PID数据处理与质量判断/PID数据质量分析"),
+    ANOMALY_DETECTION_HISTORICAL_DATA_OFFLINE(TAG_HISTORICAL_DATA, ANOMALY_DETECTION_HISTORICAL_DATA, "anomaly_detection_history_data", "异常检测历史数据", "ad_offline_file_upload", "上传数据"),
+    ANOMALY_DETECTION_HISTORICAL_FREQUENCY_DATA_FREQUENCY(TAG_HISTORICAL_DATA, ANOMALY_DETECTION_HISTORICAL_DATA, "anomaly_detection_history_data", "异常检测历史数据", "high_frequency_upload_file", "上传高频数据"),
+    BOILER_HISTORICAL_DATA_OFFLINE(TAG_HISTORICAL_DATA, BOILER_HISTORICAL_DATA, "f_boiler_history_data", "锅炉历史数据", "upload_boiler_offline_file", "系统运行历史数据选择"),
 
     HEN_REDESIGN_DESIGN_INFO_INFO_CHECK(HEAT_EXCHANGER_NETWORK_DESIGN_INFO, null, "hen_redesign_design_info", "换热网络设计信息", "info_check", "上传数据与校验"),
     F_IDX_REPORT_DATA_REPORT(METRICS_BUSINESS_REPORT_DATA, null, "f_idx_report", "指标业务报表数据", "data_report", "报表数据解析"),
     EXAM_DATA_PROCESS_RECEIVED_FORM(EXAM_QUESTION_DATA, null, "exam_data", "考题资料数据", "process_received_form", "考试题目生成"),
     REDESIGN_ENERGY_INFO_EXERGY_CAL(OVERALL_INFORMATION_DEVICE, null, "redesign_energy_info", "装置整体信息", "exergy_cal", "节能降耗瓶颈分析"),
-    HEN_REDESIGN_RESTRICTED_SELECT_FORBIDDEN_RULE(CONDITION_INPUT, null, "hen_redesign_restricted", "限制条件输入", "select_forbidden_rule", "指定现场限制条件");
+    HEN_REDESIGN_RESTRICTED_SELECT_FORBIDDEN_RULE(CONDITION_INPUT, null, "hen_redesign_restricted", "限制条件输入", "select_forbidden_rule", "指定现场限制条件"),
+    KEY_PARAMETERS_INFO(KEY_PARAMETERS, null, "key_variables_info", "关键参数", "get_call_keyword", "影响因素调研"),
+    RECENT_OPERATING_DATA(ATMOSPHERIC_PRESSURE_TOWERS, null, "recent_history_info", "近期运行数据", "distillation_point_prediction", "产品质量软测量"),
+    THE_CURRENT_OPERATING_CONDITION(ATMOSPHERIC_PRESSURE_TOWERS, null, "current_run_info", "当前运行工况", "path_plan", "动态操作路径规划"),
+    ;
 
     /**
      * 类别 (来源于 CategoryTypeEnum)

@@ -46,19 +46,14 @@ public interface FileObjectConvert {
     }
 
     default String mapCategory(FileObject fileObject) {
-        String thirdLevelCategoryCode = fileObject.getThirdLevelCategory();
-        if (StrUtil.isNotBlank(thirdLevelCategoryCode)) {
-            String categoryName = TagHistoryCategory.getCategoryByCode(convert(thirdLevelCategoryCode));
-            if (categoryName != null) {
-                return categoryName;
-            }
+
+        String thirdCategory = mapThirdCategory(fileObject);
+        if (thirdCategory != null) {
+            return thirdCategory;
         }
-        String subCategoryCode = fileObject.getSubCategory();
-        if (StrUtil.isNotBlank(subCategoryCode)) {
-            String categoryName = FileCategoryAbilityAssociation.getCategoryNameBySubCategoryCode(convert(subCategoryCode));
-            if (categoryName != null) {
-                return categoryName;
-            }
+        String secondCategory = mapSecondCategory(fileObject);
+        if (secondCategory != null) {
+            return secondCategory;
         }
         return fileObject.getCategory();
     }
@@ -68,10 +63,7 @@ public interface FileObjectConvert {
         if (StrUtil.isBlank(thirdLevelCategory)) {
             return null;
         }
-        List<Integer> thirdLevelCategories = Arrays.stream(thirdLevelCategory.split(","))
-            .map(Integer::parseInt)
-            .collect(Collectors.toList());
-        return TagHistoryCategory.getCategoryByCode(thirdLevelCategories);
+        return TagHistoryCategory.getCategoryByCode(convert(thirdLevelCategory));
     }
 
     default String mapSecondCategory(FileObject fileObject) {
@@ -79,10 +71,7 @@ public interface FileObjectConvert {
         if (StrUtil.isBlank(subCategory)) {
             return null;
         }
-        List<Integer> subCategories = Arrays.stream(subCategory.split(","))
-            .map(Integer::parseInt)
-            .collect(Collectors.toList());
-        return SubCategoryEnum.getDescriptionByCodes(subCategories);
+        return SubCategoryEnum.getDescriptionByCodes(convert(subCategory));
     }
 
     default String mapCategoryIdentifier(FileObject fileObject) {

@@ -54,7 +54,16 @@ public enum TagHistoryCategory {
     /**
      * 回路数据文件
      */
-    CIRCUIT_DATA_FILE(7, "回路数据文件");
+    CIRCUIT_DATA_FILE(7, "回路数据文件"),
+    /**
+     * 异常检测历史数据
+     */
+    ANOMALY_DETECTION_HISTORICAL_DATA(8, "异常检测历史数据"),
+    /**
+     * 锅炉历史数据
+     */
+    BOILER_HISTORICAL_DATA(9, "锅炉历史数据"),
+    ;
 
     private final Integer code;
     private final String category;
