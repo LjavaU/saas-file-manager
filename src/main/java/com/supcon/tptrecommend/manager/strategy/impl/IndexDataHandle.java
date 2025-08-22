@@ -113,8 +113,9 @@ public class IndexDataHandle implements BusinessDataHandler {
             if (reportFileIdOpt.isPresent()) {
                 ProcessProgressSupport.notifyParseProcessing(fileId, userId,RandomUtil.getRandomPercentage(25, 30));
                 String tenantId = TenantContext.getCurrentTenant();
-                redisService.hSet(Constants.INDEX_PARSE_TASK, tenantId + "-" + fileId, reportFileIdOpt.get());
+                redisService.hSet(Constants.INDEX_PARSE_TASK, tenantId + "-" + fileId, reportFileIdOpt.get(),10800);
             } else {
+                log.error("指标文件上传给指标服务失败:{}",JSONUtil.toJsonStr( response));
                 handleProcessingFailure(fileId, userId);
             }
         } catch (Exception e) {
