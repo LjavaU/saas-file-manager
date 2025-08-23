@@ -1,6 +1,5 @@
 package com.supcon.tptrecommend.manager.strategy.impl;
 
-import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
@@ -97,11 +96,11 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
         @Override
         public void invoke(Map<Integer, String> data, AnalysisContext context) {
             String time = data.get(0);
-            if (NumberUtil.isNumber(time)) {
+            LocalDateTime dateTime = DateParserUtil.parse(time);
+            if (Objects.isNull(dateTime)) {
                 return;
             }
             data.remove(0);
-            LocalDateTime dateTime = DateParserUtil.parse(time);
             for (Map.Entry<Integer, String> entry : data.entrySet()) {
                 if (entry.getKey() >= headers.size()) {
                     continue;
@@ -114,11 +113,9 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
                 tagValueDTO.setQuality(192L);
                 tagValueDTO.setTagName(tagName);
                 tagValueDTO.setTagValue(entry.getValue());
-                if (Objects.nonNull(dateTime)) {
-                    tagValueDTO.setTagTime(dateTime);
-                    tagValueDTO.setAppTime(dateTime);
-                    entities.add(tagValueDTO);
-                }
+                tagValueDTO.setTagTime(dateTime);
+                tagValueDTO.setAppTime(dateTime);
+                entities.add(tagValueDTO);
 
             }
             if (entities.size() >= Constants.TAG_HISTORY_VALUE_INSERT_SIZE) {
