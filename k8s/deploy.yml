@@ -77,6 +77,10 @@ spec:
               value: 'NACOSGRP_NAME'
             - name: spring.cloud.nacos.config.namespace
               value: '610a0661-a48d-4a5b-9cd5-d5737cc8e1c5'
+            - name: spring.cloud.nacos.config.username
+              value: nacos
+            - name: spring.cloud.nacos.config.password
+              value: nacos
           volumeMounts:
             - mountPath: /data/
               name: gpt-logs
