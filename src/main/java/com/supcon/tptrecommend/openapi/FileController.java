@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.openapi;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.github.xiaoymin.knife4j.annotations.ApiOperationSupport;
+import com.supcon.system.base.common.annotation.UnAuthentication;
 import com.supcon.system.base.entity.basic.BasicController;
 import com.supcon.systembase.logapi.annotation.SysServiceLog;
 import com.supcon.systembase.logapi.enums.OperateTypeEnum;
@@ -82,6 +83,7 @@ public class FileController extends BasicController {
     @ApiOperation("获取单个文件流")
     @ApiOperationSupport(order = 5, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取单个文件流", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    @UnAuthentication
     public void getOne(@Valid @RequestBody SupRequestBody<SingleFileQueryReq> req, HttpServletResponse response) {
         fileManager.getOne(req.getData(), response);
     }
