@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.system.base.entity.basic.impl.BasicServiceImpl;
 import com.supcon.tptrecommend.common.enums.FileStatus;
+import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.FileStatisticsResp;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.mapper.FileObjectMapper;
 import com.supcon.tptrecommend.service.IFileObjectService;
@@ -89,5 +91,20 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
             }
             return null;
         });
+    }
+
+    /**
+     * 统计文件总数和总大小
+     *
+     * @return {@link FileStatisticsResp }
+     * @author luhao
+     * @since 2025/09/10 14:46:05
+     *
+     */
+    @Override
+    public FileStatisticsResp getFileStatistics() {
+        FileStatisticsResp fileStatistics = fileObjectMapper.getFileStatistics();
+        fileStatistics.setTotalSize(FileUtils.formatFileSize(Long.parseLong(fileStatistics.getTotalSize())));
+        return fileStatistics;
     }
 }

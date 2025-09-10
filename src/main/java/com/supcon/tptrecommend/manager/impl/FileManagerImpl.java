@@ -880,4 +880,18 @@ public class FileManagerImpl implements FileManager {
     private String completeFileName(String fileName) {
         return fileName.endsWith(".xlsx") ? fileName : fileName + ".xlsx";
     }
+
+    /**
+     *  文件统计
+     *
+     * @return {@link FileStatisticsResp }
+     * @author luhao
+     * @since 2025/09/10 14:46:25
+     *
+     */
+    @Override
+    public FileStatisticsResp fileStatistics() {
+        // 统计文件总数量和总大小
+      return  fileObjectService.getFileStatistics();
+    }
 }

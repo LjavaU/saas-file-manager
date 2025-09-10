@@ -144,4 +144,14 @@ public interface FileManager {
      *
      */
     void convertFileToUpload(ExcelUploadRequest request);
+
+    /**
+     * 文件统计
+     *
+     * @return {@link FileStatisticsResp }
+     * @author luhao
+     * @since 2025/09/10 14:46:18
+     *
+     */
+    FileStatisticsResp fileStatistics();
 }

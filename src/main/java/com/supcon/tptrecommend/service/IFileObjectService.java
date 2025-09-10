@@ -4,6 +4,7 @@ import com.supcon.system.base.entity.basic.IBasicService;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.FileStatisticsResp;
 import com.supcon.tptrecommend.entity.FileObject;
 
 import java.util.List;
@@ -70,4 +71,5 @@ public interface IFileObjectService extends IBasicService<FileObject> {
      */
     Long getUserIdByFileId(Long fileId);
 
+    FileStatisticsResp getFileStatistics();
 }
