@@ -48,7 +48,7 @@ public class FileController extends BasicController {
     @ApiOperation("上传文件")
     @ApiOperationSupport(order = 1, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile,  String path) {
+    public SupResult<FileObjectResp> upload(@RequestPart(value = "file") MultipartFile multipartFile, String path) {
         return data(fileManager.upload(multipartFile, path));
     }
 
@@ -93,7 +93,7 @@ public class FileController extends BasicController {
     @ApiOperation("获取文件详情")
     @ApiOperationSupport(order = 6, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取文件详情", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
-    public SupResult<List<FileObject>> detail(@RequestBody @Valid  SupRequestBody<FileDetailReq> req) {
+    public SupResult<List<FileObject>> detail(@RequestBody @Valid SupRequestBody<FileDetailReq> req) {
         return data(fileManager.detail(req.getData()));
     }
 
@@ -134,7 +134,7 @@ public class FileController extends BasicController {
     @ApiOperationSupport(order = 11, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-获取文件解析状态", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
     public SupResult<Integer> getFileStatus(@PathVariable Long fileId) {
-      return data(fileManager.getFileStatus(fileId));
+        return data(fileManager.getFileStatus(fileId));
     }
 
     @GetMapping("reIndexParse/{fileId}")
@@ -154,6 +154,15 @@ public class FileController extends BasicController {
     public SupResult<Integer> convertFileToUpload(@RequestBody ExcelUploadRequest request) {
         fileManager.convertFileToUpload(request);
         return SupResult.success();
+    }
+
+
+    @GetMapping("statistics")
+    @ApiOperation("文件统计")
+    @ApiOperationSupport(order = 14, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-文件统计", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<FileStatisticsResp> fileStatistics() {
+        return data(fileManager.fileStatistics());
     }
 
 

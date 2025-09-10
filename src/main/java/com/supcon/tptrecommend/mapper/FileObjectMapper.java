@@ -3,6 +3,7 @@ package com.supcon.tptrecommend.mapper;
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.supcon.system.base.entity.basic.IBaseMapper;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
+import com.supcon.tptrecommend.dto.fileobject.FileStatisticsResp;
 import com.supcon.tptrecommend.entity.FileObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -49,4 +50,17 @@ public interface FileObjectMapper extends IBaseMapper<FileObject> {
     void updateKnowledgeParseState(FileObject fileObject);
 
 
+    /**
+     * 统计文件总数和总大小
+     *
+     * @return {@link FileStatisticsResp }
+     * @author luhao
+     * @since 2025/09/10 14:45:53
+     *
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT COUNT(*) AS totalFiles, \n" +
+        "       SUM(file_size) AS totalSize\n" +
+        "FROM file_object where original_name is not null;")
+    FileStatisticsResp getFileStatistics();
 }
