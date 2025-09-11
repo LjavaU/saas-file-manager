@@ -114,7 +114,7 @@ public class MinioUtils {
      * @author luhao
      * @since 2025/08/21 19:05:54
      */
-    public void uploadFile(String bucketName, String objectName, InputStream inputStream, String contentType,long size) throws Exception {
+    public void uploadFile(String bucketName, String objectName, InputStream inputStream, String contentType, long size) throws Exception {
         if (!bucketExists(bucketName)) {
             makeBucket(bucketName);
         }
@@ -354,6 +354,9 @@ public class MinioUtils {
      * @since 2025/06/11 16:30:11
      */
     public void createFolder(String bucketName, String folderName) {
+        if (!bucketExists(bucketName)) {
+            makeBucket(bucketName);
+        }
         try {
             // 确保 folderName 以斜杠结尾
             if (!folderName.endsWith("/")) {
@@ -427,7 +430,7 @@ public class MinioUtils {
      * @since 2025/08/08 13:57:04
      *
      */
-    public File saveStreamToTempFile(String bucketName, String objectName,String uniqueFilename) {
+    public File saveStreamToTempFile(String bucketName, String objectName, String uniqueFilename) {
         // 1. 构建完整的目标文件路径
         Path destinationPath = Paths.get(tempDir, uniqueFilename);
         Path parentDir = destinationPath.getParent();
@@ -436,8 +439,8 @@ public class MinioUtils {
             try {
                 Files.createDirectories(parentDir);
             } catch (IOException e) {
-               log.error("创建目录失败: ", e);
-               return null;
+                log.error("创建目录失败: ", e);
+                return null;
             }
         }
         try (InputStream stream = getFileInputStream(bucketName, objectName)) {
