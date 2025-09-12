@@ -10,7 +10,7 @@ public class FileStatisticsResp {
     @ApiModelProperty(value = "总文件数")
     private Long totalFiles;
 
-    @ApiModelProperty(value = "总大小")
-    private String totalSize;
+    @ApiModelProperty(value = "总大小（字节）")
+    private Long totalSize;
 
 }
