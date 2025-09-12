@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.system.base.entity.basic.impl.BasicServiceImpl;
 import com.supcon.tptrecommend.common.enums.FileStatus;
-import com.supcon.tptrecommend.common.utils.FileUtils;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
@@ -103,8 +102,6 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
      */
     @Override
     public FileStatisticsResp getFileStatistics() {
-        FileStatisticsResp fileStatistics = fileObjectMapper.getFileStatistics();
-        fileStatistics.setTotalSize(FileUtils.formatFileSize(Long.parseLong(fileStatistics.getTotalSize())));
-        return fileStatistics;
+        return fileObjectMapper.getFileStatistics();
     }
 }
