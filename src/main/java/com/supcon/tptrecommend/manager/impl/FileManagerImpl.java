@@ -118,8 +118,12 @@ public class FileManagerImpl implements FileManager {
      */
     @Override
     public FileObjectResp upload(MultipartFile file, String path) {
-        String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
+        return doUpload(file, path, user);
+    }
+
+    private FileObjectResp doUpload(MultipartFile file, String path, LoginInfoUserDTO user) {
+        String originalFilename = file.getOriginalFilename() == null ? "unknown" : file.getOriginalFilename();
         // 生成对象键 (Object Key)
         String objectKey = generateUniqueObjectKey(path, originalFilename, user.getUsername());
         String contentType = file.getContentType();
@@ -133,6 +137,7 @@ public class FileManagerImpl implements FileManager {
         doFileProcess(fileId, userId, originalFilename, null);
         return buildFileObjectResp(fileId, user, objectKey, originalFilename, contentType, size);
     }
+
 
     /**
      * 生成唯一对象键
@@ -917,8 +922,19 @@ public class FileManagerImpl implements FileManager {
         if (multipartFiles.size() > 20) {
             throw new ClientException("一次最多上传20个文件");
         }
+
+        LoginInfoUserDTO loginUser = LoginUserUtils.getLoginUserInfo();
+        String currentTenant = TenantContext.getCurrentTenant();
+
         List<CompletableFuture<FileObjectResp>> futures = multipartFiles.stream()
-            .map(file -> CompletableFuture.supplyAsync(() -> upload(file, path), fileUploadExecutor))
+            .map(file -> CompletableFuture.supplyAsync(() -> {
+                TenantContext.setCurrentTenant(currentTenant);
+                try {
+                    return doUpload(file, path, loginUser);
+                } finally {
+                    TenantContext.clear();
+                }
+            }, fileUploadExecutor))
             .collect(Collectors.toList());
 
         // 使用 allOf 等待所有异步任务完成
