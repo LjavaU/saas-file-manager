@@ -119,7 +119,9 @@ public class FileManagerImpl implements FileManager {
     @Override
     public FileObjectResp upload(MultipartFile file, String path) {
         LoginInfoUserDTO user = LoginUserUtils.getLoginUserInfo();
-        return doUpload(file, path, user);
+        FileObjectResp fileObjectResp = doUpload(file, path, user);
+        doFileProcess(fileObjectResp.getId(), user.getId(), fileObjectResp.getOriginalName(), null);
+        return fileObjectResp;
     }
 
     private FileObjectResp doUpload(MultipartFile file, String path, LoginInfoUserDTO user) {
@@ -132,12 +134,8 @@ public class FileManagerImpl implements FileManager {
         uploadToMinio(file, objectKey);
         // 保存文件元数据 到数据库
         Long fileId = saveMetadataToDB(contentType, size, user, objectKey, originalFilename);
-        Long userId = user.getId();
-        // 异步处理文件
-        doFileProcess(fileId, userId, originalFilename, null);
         return buildFileObjectResp(fileId, user, objectKey, originalFilename, contentType, size);
     }
-
 
     /**
      * 生成唯一对象键
@@ -941,9 +939,12 @@ public class FileManagerImpl implements FileManager {
         CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
         // 等待所有任务完成并收集结果
-        return allOf.thenApply(v -> futures.stream()
+        List<FileObjectResp> fileObjectResps = allOf.thenApply(v -> futures.stream()
                 .map(CompletableFuture::join)
                 .collect(Collectors.toList()))
             .join();
+        // 创建文件处理任务
+        fileObjectResps.forEach(fileResp -> doFileProcess(fileResp.getId(), loginUser.getId(), fileResp.getOriginalName(), null));
+        return fileObjectResps;
     }
 }
