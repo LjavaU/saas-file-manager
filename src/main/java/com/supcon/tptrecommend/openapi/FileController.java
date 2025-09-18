@@ -167,4 +167,20 @@ public class FileController extends BasicController {
     }
 
 
+    /**
+     * 批量上传文件
+     *
+     * @param multipartFiles 文件列表
+     * @return 结果
+     * @author luhao
+     * @date 2025/09/15 12:03:00
+     */
+    @PostMapping(value = "/batchUpload")
+    @ApiOperation("批量上传文件")
+    @ApiOperationSupport(order = 15, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-批量上传文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<List<FileObjectResp>> batchUpload(@RequestPart(value = "files") List<MultipartFile> multipartFiles, String path) {
+        return data(fileManager.batchUpload(multipartFiles, path));
+    }
+
 }

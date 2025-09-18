@@ -78,7 +78,9 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileRecommendationService fileRecommendationService;
 
-    private final Executor fileExecutor;
+    private final Executor fileProcessingExecutor;
+
+    private final Executor fileUploadExecutor;
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
@@ -87,13 +89,15 @@ public class FileManagerImpl implements FileManager {
                            KnowledgeFeign knowledgeFeign,
                            IFileRecommendationService fileRecommendationService,
                            FileAnalysisHandleFactory fileAnalysisHandleFactory,
-                           @Qualifier("fileProcessingExecutor") Executor fileExecutor) {
+                           @Qualifier("fileProcessingTaskExecutor") Executor fileProcessingExecutor,
+                           @Qualifier("fileUploadTaskExecutor") Executor fileUploadExecutor) {
         this.minioUtils = minioUtils;
         this.fileObjectService = fileObjectService;
         this.knowledgeFeign = knowledgeFeign;
         this.fileRecommendationService = fileRecommendationService;
         this.fileAnalysisHandleFactory = fileAnalysisHandleFactory;
-        this.fileExecutor = fileExecutor;
+        this.fileProcessingExecutor = fileProcessingExecutor;
+        this.fileUploadExecutor = fileUploadExecutor;
     }
 
     private final Executor delExecutor = new ThreadPoolExecutor(
@@ -184,7 +188,7 @@ public class FileManagerImpl implements FileManager {
             try {
                 CompletableFuture.runAsync(TtlRunnable.get(() -> {
                     fileAnalysisHandle.handleFileAnalysis(fileId, category);
-                }), fileExecutor).exceptionally(throwable -> {
+                }), fileProcessingExecutor).exceptionally(throwable -> {
                     log.error("文件：{},在处理过程中失败", originalFilename, throwable);
                     markFileAsParseFailed(fileId, userId);
                     return null;
@@ -739,7 +743,6 @@ public class FileManagerImpl implements FileManager {
     }
 
 
-
     @Override
     public Integer getFileStatus(Long fileId) {
         return Optional.ofNullable(fileObjectService.getById(fileId))
@@ -882,7 +885,7 @@ public class FileManagerImpl implements FileManager {
     }
 
     /**
-     *  文件统计
+     * 文件统计
      *
      * @return {@link FileStatisticsResp }
      * @author luhao
@@ -892,6 +895,39 @@ public class FileManagerImpl implements FileManager {
     @Override
     public FileStatisticsResp fileStatistics() {
         // 统计文件总数量和总大小
-      return  fileObjectService.getFileStatistics();
+        return fileObjectService.getFileStatistics();
+    }
+
+    /**
+     * 批量上传
+     *
+     * @param multipartFiles 多部分文件
+     * @param path           路径
+     * @return {@link List }<{@link FileObjectResp }>
+     * @author luhao
+     * @since 2025/09/17 19:52:40
+     *
+     */
+    @Override
+    public List<FileObjectResp> batchUpload(List<MultipartFile> multipartFiles, String path) {
+        if (CollUtil.isEmpty(multipartFiles)) {
+            throw new ServerException("上传文件不能为空");
+        }
+        // 限制文件为20个
+        if (multipartFiles.size() > 20) {
+            throw new ClientException("一次最多上传20个文件");
+        }
+        List<CompletableFuture<FileObjectResp>> futures = multipartFiles.stream()
+            .map(file -> CompletableFuture.supplyAsync(() -> upload(file, path), fileUploadExecutor))
+            .collect(Collectors.toList());
+
+        // 使用 allOf 等待所有异步任务完成
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+        // 等待所有任务完成并收集结果
+        return allOf.thenApply(v -> futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList()))
+            .join();
     }
 }
