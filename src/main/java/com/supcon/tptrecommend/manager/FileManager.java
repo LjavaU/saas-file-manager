@@ -154,4 +154,6 @@ public interface FileManager {
      *
      */
     FileStatisticsResp fileStatistics();
+
+    List<FileObjectResp> batchUpload(List<MultipartFile> multipartFiles, String path);
 }
