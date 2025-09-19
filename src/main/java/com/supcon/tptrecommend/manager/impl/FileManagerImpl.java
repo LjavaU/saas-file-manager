@@ -466,7 +466,7 @@ public class FileManagerImpl implements FileManager {
         }
         // 确保 folderName 以斜杠结尾
         folderName += FILE_SPLIT;
-        boolean shared = Boolean.TRUE.equals(data.getShared());
+        boolean shared = FolderTypeEnum.TENANT.getCode().equals(data.getFolderType());
         String basePath;
         String username = user.getUsername();
         if (!shared) {
@@ -475,7 +475,7 @@ public class FileManagerImpl implements FileManager {
             basePath = buildSharedFolderPathWithPersonalConflictCheck(folderName, username);
 
         }
-        saveFolderToDB(user, basePath,shared);
+        saveFolderToDB(user, basePath, shared);
         minioUtils.createFolder(bucket, basePath);
         return true;
     }
@@ -504,7 +504,7 @@ public class FileManagerImpl implements FileManager {
         return getSharedPath() + folderNameWithSlash;
     }
 
-    private void saveFolderToDB(LoginInfoUserDTO user, String path,boolean shared) {
+    private void saveFolderToDB(LoginInfoUserDTO user, String path, boolean shared) {
         // 判断文件是否存在
         LambdaQueryWrapper<FileObject> query = Wrappers.<FileObject>lambdaQuery()
             .eq(FileObject::getObjectName, path);
@@ -620,7 +620,7 @@ public class FileManagerImpl implements FileManager {
         node.setPath(path + folderName + FILE_SPLIT);
         node.setTenantId(fileObject.getTenantId());
         node.setUserId(fileObject.getUserId());
-        node.setFolderType(isSharedFolder(node.getPath()) ? FolderTypeEnum.SHARED.getCode() : FolderTypeEnum.PERSONAL.getCode());
+        node.setFolderType(isSharedFolder(node.getPath()) ? FolderTypeEnum.TENANT.getCode() : FolderTypeEnum.PERSONAL.getCode());
         fileNodes.add(node);
     }
 

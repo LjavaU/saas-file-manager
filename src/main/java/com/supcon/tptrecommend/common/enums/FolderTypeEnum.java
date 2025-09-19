@@ -12,8 +12,8 @@ import lombok.Getter;
 @AllArgsConstructor
 @Getter
 public enum FolderTypeEnum {
-    PERSONAL("personal", "个人文件夹"),
-    SHARED("shared", "统一租户下共享文件夹")
+    PERSONAL("private", "个人文件夹"),
+    TENANT("tenant", "同一租户下共享")
     ;
     private final String code;
     private final String description;

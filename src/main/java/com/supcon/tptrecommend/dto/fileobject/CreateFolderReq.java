@@ -15,6 +15,6 @@ public class CreateFolderReq {
     @Length(max = 30, message = "文件夹名称不能超过30个字符")
     private String folderName;
 
-    @ApiModelProperty(value = "是否创建共享文件夹 true 是 false 否", example = "false")
-    private Boolean shared = false;
+    @ApiModelProperty(value = "文件夹类型 private：私有，tenant：租户共享 ", example = "private")
+    private String folderType = "private";
 }
