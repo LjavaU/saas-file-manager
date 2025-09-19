@@ -62,7 +62,7 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
         if (FileStatus.UNPARSED.getValue().equals(fileObject.getFileStatus())) {
             String originalFilename = fileObject.getOriginalName();
             String objectName = fileObject.getObjectName();
-            String uniqueFilename = FileUtils.getOriginalFileNameFromObjectKey(objectName);
+            String uniqueFilename = FileUtils.getFileNameFromObjectKey(objectName);
             File file = null;
             try {
                 file = minioUtils.saveStreamToTempFile(fileObject.getBucketName(), objectName, uniqueFilename);
