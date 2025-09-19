@@ -6,7 +6,6 @@ import lombok.Data;
 import org.hibernate.validator.constraints.Length;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 
 @Data
 @ApiModel(description = "创建文件夹请求体")
@@ -17,6 +16,5 @@ public class CreateFolderReq {
     private String folderName;
 
     @ApiModelProperty(value = "是否创建共享文件夹 true 是 false 否", example = "false")
-    @NotNull(message = "是否创建共享文件夹不能为空")
-    private Boolean shared;
+    private Boolean shared = false;
 }

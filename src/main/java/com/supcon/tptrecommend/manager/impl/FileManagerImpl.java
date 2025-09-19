@@ -467,10 +467,16 @@ public class FileManagerImpl implements FileManager {
         // 确保 folderName 以斜杠结尾
         folderName += FILE_SPLIT;
         boolean shared = Boolean.TRUE.equals(data.getShared());
-        String basePath = shared ? getSharedPath() : getPath(user.getUsername());
-        String path = basePath + folderName;
-        saveFolderToDB(user, path, shared);
-        minioUtils.createFolder(bucket, path);
+        String basePath;
+        String username = user.getUsername();
+        if (!shared) {
+            basePath = buildPersonalFolderPathWithSharedConflictCheck(folderName, username);
+        } else {
+            basePath = buildSharedFolderPathWithPersonalConflictCheck(folderName, username);
+
+        }
+        saveFolderToDB(user, basePath,shared);
+        minioUtils.createFolder(bucket, basePath);
         return true;
     }
 
@@ -478,7 +484,27 @@ public class FileManagerImpl implements FileManager {
         return TenantContext.getCurrentTenant() + FILE_SPLIT + SHARED_FOLDER_PLACEHOLDER + FILE_SPLIT;
     }
 
-    private void saveFolderToDB(LoginInfoUserDTO user, String path, boolean shared) {
+    private String buildPersonalFolderPathWithSharedConflictCheck(String folderNameWithSlash, String userName) {
+        String sharedPath = getSharedPath() + folderNameWithSlash;
+        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, sharedPath)) > 0;
+        if (exists) {
+            throw new ClientException("已存在同名文件夹");
+        }
+        return getPath(userName) + folderNameWithSlash;
+    }
+
+    private String buildSharedFolderPathWithPersonalConflictCheck(String folderNameWithSlash, String username) {
+        String userPath = getPath(username) + folderNameWithSlash;
+        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, userPath)) > 0;
+        if (exists) {
+            throw new ClientException("已存在同名文件夹");
+        }
+        return getSharedPath() + folderNameWithSlash;
+    }
+
+    private void saveFolderToDB(LoginInfoUserDTO user, String path,boolean shared) {
         // 判断文件是否存在
         LambdaQueryWrapper<FileObject> query = Wrappers.<FileObject>lambdaQuery()
             .eq(FileObject::getObjectName, path);
@@ -552,7 +578,7 @@ public class FileManagerImpl implements FileManager {
                 // 只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, relativePath.indexOf('/'));
                 // 获取该文件夹下的文件数量
-                int count = minioUtils.countFilePrefix(bucket, currentRootPath + folderName );
+                int count = minioUtils.countFilePrefix(bucket, currentRootPath + folderName);
                 getFileFolderNodeResp(currentRootPath, fileObject, folderName, count, fileNodes);
             }
 
