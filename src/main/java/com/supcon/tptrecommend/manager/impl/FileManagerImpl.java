@@ -583,8 +583,10 @@ public class FileManagerImpl implements FileManager {
             }
 
         }
-        // 先按照文件夹进行排序，再按照上传时间进行排序
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
+        // 对结果进行排序：文件夹在前，文件在后，共享文件夹在最前；同类型按上传时间降序
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getFolderType).reversed()
+            .thenComparing(FileNodeResp::getType,Comparator.reverseOrder())
+            .thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
 
         return fileNodes;
     }
