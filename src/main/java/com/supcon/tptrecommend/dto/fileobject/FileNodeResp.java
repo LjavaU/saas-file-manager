@@ -12,6 +12,7 @@ import java.util.List;
 @ApiModel(description = "返回文件层级返回体")
 public class FileNodeResp {
 
+
     @ApiModelProperty(value = "文件/夹Id")
     private Long id;
 
@@ -24,8 +25,17 @@ public class FileNodeResp {
     @ApiModelProperty(value = "文件类型, \"folder\" or \"file\"")
     private String type;
 
+    @ApiModelProperty(value = "文件夹类型",example = "personal:个人文件夹 shared:共享文件夹")
+    private String folderType;
+
     @ApiModelProperty(value = "文件大小")
     private String size;
+
+    @ApiModelProperty(value = "租户 ID")
+    private String tenantId;
+
+    @ApiModelProperty(value = "用户 ID")
+    private Long userId;
 
     @ApiModelProperty(value = "上传时间")
     private LocalDateTime uploadTime;
