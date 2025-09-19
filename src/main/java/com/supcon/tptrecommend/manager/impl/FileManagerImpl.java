@@ -155,22 +155,25 @@ public class FileManagerImpl implements FileManager {
         // 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
 
-        return resolveUploadPath(path, LoginUserUtils.getLoginUserInfo()) + uniqueFilename;
+        return resolveUploadPath(path, userName) + uniqueFilename;
     }
 
-    private String resolveUploadPath(String path, LoginInfoUserDTO user) {
+    private String resolveUploadPath(String path, String userName) {
         if (StrUtil.isNotBlank(path)) {
             if (!path.endsWith(FILE_SPLIT)) {
                 path += FILE_SPLIT;
             }
+        } else {
+            return getPath(userName);
         }
-        FileObject fileObject = fileObjectService.limitOne(Wrappers.<FileObject>lambdaQuery()
-            .likeLeft(FileObject::getObjectName, path));
-        if (fileObject != null) {
-            return fileObject.getObjectName();
+        String userPath = getPath(userName) + path;
+        long count = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, userPath));
+        if (count > 0) {
+            return userPath;
 
         }
-        return getPath(user.getUsername());
+        return getSharedPath();
     }
 
     private FileObjectResp buildFileObjectResp(Long fileId, LoginInfoUserDTO user, String objectName, String originalFilename, String contentType, long size) {
@@ -584,8 +587,8 @@ public class FileManagerImpl implements FileManager {
 
         }
         // 对结果进行排序：文件夹在前，文件在后，共享文件夹在最前；同类型按上传时间降序
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getFolderType).reversed()
-            .thenComparing(FileNodeResp::getType,Comparator.reverseOrder())
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getFolderType,Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(FileNodeResp::getType, Comparator.reverseOrder())
             .thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
 
         return fileNodes;
