@@ -63,7 +63,7 @@ public class WordFileAnalysisHandle implements FileAnalysisHandle {
         // 上传知识库
         knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId);
         String objectName = fileObject.getObjectName();
-        String uniqueFilename = FileUtils.getFileNameFromObjectName(objectName);
+        String uniqueFilename = FileUtils.getOriginalFileNameFromObjectKey(objectName);
         String originalName = fileObject.getOriginalName();
         // TODO：控制word文件大小
         if (fileObject.getFileSize() > 1024 * 1024 * 100) {

@@ -110,20 +110,38 @@ public class FileUtils {
     }
 
     /**
-     * 从对象名称获取文件名
+     * 从minio对象名称获取文件名
      *
-     * @param objectName 对象名称
+     * @param objectKey 对象名称
      * @return {@link String }
      * @author luhao
      * @since 2025/08/08 14:34:30
      *
      */
-    public static String getFileNameFromObjectName(String objectName) {
-        if (StrUtil.isBlank(objectName)) {
+    public static String getFileNameFromObjectKey(String objectKey) {
+        if (StrUtil.isBlank(objectKey)) {
             return null;
         }
-        return objectName.substring(objectName.lastIndexOf("/") + 1);
+        return objectKey.substring(objectKey.lastIndexOf("/") + 1);
     }
+
+    /**
+     * 从minio对象名称获取原始文件名
+     *
+     * @param objectKey 对象名称
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/08 14:34:30
+     *
+     */
+    public static String getOriginalFileNameFromObjectKey(String objectKey) {
+        if (StrUtil.isBlank(objectKey)) {
+            return "";
+        }
+        String fileName = objectKey.substring(objectKey.lastIndexOf("/") + 1);
+        return fileName.substring(fileName.indexOf("_") + 1);
+    }
+
 
     /**
      * 删除临时文件

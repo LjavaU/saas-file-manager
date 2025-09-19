@@ -71,7 +71,7 @@ public class FileManagerImpl implements FileManager {
     /**
      * 共享文件夹占位符
      */
-    private static final String SHARED_FOLDER_PLACEHOLDER = "shared";
+    private static final String SHARED_FOLDER_PLACEHOLDER = "_shared";
 
     private final MinioUtils minioUtils;
 
@@ -399,7 +399,7 @@ public class FileManagerImpl implements FileManager {
             response.setContentType(metadata.contentType());
             response.setContentLengthLong(metadata.size());
 
-            String originFileName = path.substring(path.indexOf("_") + 1);
+            String originFileName = FileUtils.getOriginalFileNameFromObjectKey(path);
             String encodedFileName = URLEncoder.encode(originFileName, StandardCharsets.UTF_8.name()).replaceAll("\\+", "%20");
             response.setHeader("Content-disposition", "attachment;filename*=UTF-8''" + encodedFileName);
 
@@ -465,17 +465,23 @@ public class FileManagerImpl implements FileManager {
             throw new ClientException("文件夹名称不能包含特殊字符/_");
         }
         // 确保 folderName 以斜杠结尾
-        folderName += FILE_SPLIT;
+        String folderNameWithSlash = folderName + FILE_SPLIT;
         boolean shared = FolderTypeEnum.TENANT.getCode().equals(data.getFolderType());
         String basePath;
-        String username = user.getUsername();
         if (!shared) {
-            basePath = buildPersonalFolderPathWithSharedConflictCheck(folderName, username);
+            basePath = getPath(user.getUsername()) + folderNameWithSlash;
+            if (isFolderNameExistsInUser(basePath, folderNameWithSlash)) {
+                throw new ClientException("已存在同名文件夹");
+            }
         } else {
-            basePath = buildSharedFolderPathWithPersonalConflictCheck(folderName, username);
+            // 检查文件夹名称在租户内是否已存在
+            if (isFolderNameExistsInTenant(folderNameWithSlash)) {
+                throw new ClientException("已存在同名文件夹");
+            }
+            basePath = getSharedPath() + folderNameWithSlash;
 
         }
-        saveFolderToDB(user, basePath, shared);
+        saveFolderToDB(user, basePath);
         minioUtils.createFolder(bucket, basePath);
         return true;
     }
@@ -484,39 +490,33 @@ public class FileManagerImpl implements FileManager {
         return TenantContext.getCurrentTenant() + FILE_SPLIT + SHARED_FOLDER_PLACEHOLDER + FILE_SPLIT;
     }
 
-    private String buildPersonalFolderPathWithSharedConflictCheck(String folderNameWithSlash, String userName) {
-        String sharedPath = getSharedPath() + folderNameWithSlash;
-        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
-            .eq(FileObject::getObjectName, sharedPath)) > 0;
-        if (exists) {
-            throw new ClientException("已存在同名文件夹");
-        }
-        return getPath(userName) + folderNameWithSlash;
+
+    /**
+     * 检查在指定的租户中是否存在具有给定名称的任何文件夹（个人或共享）。
+     *
+     * @param folderNameWithSlash 文件夹的名称 (带斜杠).
+     * @return 如果文件夹名称已存在，则为 true，否则为 false.
+     */
+    private boolean isFolderNameExistsInTenant(String folderNameWithSlash) {
+        // 构造一个匹配任何用户或共享文件夹下的文件夹名称的模式
+        // 例如: %/folderName/
+        String searchPattern = "/" + folderNameWithSlash;
+        long count = fileObjectService.count(
+            Wrappers.<FileObject>lambdaQuery()
+                .likeLeft(FileObject::getObjectName, searchPattern)
+        );
+        return count > 0;
     }
 
-    private String buildSharedFolderPathWithPersonalConflictCheck(String folderNameWithSlash, String username) {
-        String userPath = getPath(username) + folderNameWithSlash;
-        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
-            .eq(FileObject::getObjectName, userPath)) > 0;
-        if (exists) {
-            throw new ClientException("已存在同名文件夹");
-        }
-        return getSharedPath() + folderNameWithSlash;
+    private boolean isFolderNameExistsInUser(String path, String folderNameWithSlash) {
+        return fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, path)
+        ) > 0 ||
+            fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+                .eq(FileObject::getObjectName, getSharedPath() + folderNameWithSlash)) > 0;
     }
 
-    private void saveFolderToDB(LoginInfoUserDTO user, String path, boolean shared) {
-        // 判断文件是否存在
-        LambdaQueryWrapper<FileObject> query = Wrappers.<FileObject>lambdaQuery()
-            .eq(FileObject::getObjectName, path);
-        if (!shared) {
-            query.eq(FileObject::getUserId, user.getId())
-                .eq(FileObject::getUserName, user.getUsername());
-        }
-        long count = fileObjectService.count(query);
-        // 如果存在，则不保存
-        if (count > 0) {
-            throw new ClientException("已存在相同的文件夹名称");
-        }
+    private void saveFolderToDB(LoginInfoUserDTO user, String path) {
         fileObjectService.saveObj(FileObjectCreateReq.builder()
             .userId(user.getId())
             .userName(user.getUsername())

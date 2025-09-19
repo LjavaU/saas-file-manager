@@ -122,7 +122,7 @@ public class KnowledgeFileHandleTemplate {
         InputStreamResource resource = new InputStreamResource(minioUtils.getFileInputStream(bucketName, objectName)) {
             @Override
             public String getFilename() {
-                return FileUtils.getFileNameFromObjectName(objectName);
+                return FileUtils.getOriginalFileNameFromObjectKey(objectName);
             }
 
             @Override
