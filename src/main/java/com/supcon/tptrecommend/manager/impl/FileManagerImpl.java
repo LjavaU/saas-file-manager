@@ -173,7 +173,7 @@ public class FileManagerImpl implements FileManager {
             return userPath;
 
         }
-        return getSharedPath();
+        return getSharedPath() + path;
     }
 
     private FileObjectResp buildFileObjectResp(Long fileId, LoginInfoUserDTO user, String objectName, String originalFilename, String contentType, long size) {
@@ -587,7 +587,7 @@ public class FileManagerImpl implements FileManager {
 
         }
         // 对结果进行排序：文件夹在前，文件在后，共享文件夹在最前；同类型按上传时间降序
-        fileNodes.sort(Comparator.comparing(FileNodeResp::getFolderType,Comparator.nullsLast(Comparator.reverseOrder()))
+        fileNodes.sort(Comparator.comparing(FileNodeResp::getFolderType, Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(FileNodeResp::getType, Comparator.reverseOrder())
             .thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
 
