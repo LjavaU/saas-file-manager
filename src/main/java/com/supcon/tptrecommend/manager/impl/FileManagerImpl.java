@@ -9,6 +9,7 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.ttl.TtlRunnable;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -20,10 +21,7 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.systemmanagerapi.dto.LoginInfoUserDTO;
-import com.supcon.tptrecommend.common.enums.FileCategoryAbilityAssociation;
-import com.supcon.tptrecommend.common.enums.FileKind;
-import com.supcon.tptrecommend.common.enums.FileStatus;
-import com.supcon.tptrecommend.common.enums.SubCategoryEnum;
+import com.supcon.tptrecommend.common.enums.*;
 import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
@@ -69,6 +67,11 @@ public class FileManagerImpl implements FileManager {
     private String bucket;
 
     public static final String FILE_SPLIT = "/";
+
+    /**
+     * 共享文件夹占位符
+     */
+    private static final String SHARED_FOLDER_PLACEHOLDER = "shared";
 
     private final MinioUtils minioUtils;
 
@@ -152,19 +155,23 @@ public class FileManagerImpl implements FileManager {
         // 生成唯一文件名
         String uniqueFilename = UUID.fastUUID().toString().replace("-", "") + "_" + originalFilename;
 
-        // 文件全路径
-        String objectKey;
+        return resolveUploadPath(path, LoginUserUtils.getLoginUserInfo()) + uniqueFilename;
+    }
+
+    private String resolveUploadPath(String path, LoginInfoUserDTO user) {
         if (StrUtil.isNotBlank(path)) {
             if (!path.endsWith(FILE_SPLIT)) {
                 path += FILE_SPLIT;
             }
-            objectKey = getPath(userName) + path + uniqueFilename;
-        } else {
-            objectKey = getPath(userName) + uniqueFilename;
         }
-        return objectKey;
-    }
+        FileObject fileObject = fileObjectService.limitOne(Wrappers.<FileObject>lambdaQuery()
+            .likeLeft(FileObject::getObjectName, path));
+        if (fileObject != null) {
+            return fileObject.getObjectName();
 
+        }
+        return getPath(user.getUsername());
+    }
 
     private FileObjectResp buildFileObjectResp(Long fileId, LoginInfoUserDTO user, String objectName, String originalFilename, String contentType, long size) {
         FileObjectResp fileObjectResp = new FileObjectResp();
@@ -459,18 +466,53 @@ public class FileManagerImpl implements FileManager {
         }
         // 确保 folderName 以斜杠结尾
         folderName += FILE_SPLIT;
-        String path = getPath(user.getUsername()) + folderName;
-        saveFolderToDB(user, path);
-        minioUtils.createFolder(bucket, path);
+        boolean shared = Boolean.TRUE.equals(data.getShared());
+        String basePath;
+        String username = user.getUsername();
+        if (!shared) {
+            basePath = buildPersonalFolderPathWithSharedConflictCheck(folderName, username);
+        } else {
+            basePath = buildSharedFolderPathWithPersonalConflictCheck(folderName, username);
+
+        }
+        saveFolderToDB(user, basePath,shared);
+        minioUtils.createFolder(bucket, basePath);
         return true;
     }
 
-    private void saveFolderToDB(LoginInfoUserDTO user, String path) {
+    public String getSharedPath() {
+        return TenantContext.getCurrentTenant() + FILE_SPLIT + SHARED_FOLDER_PLACEHOLDER + FILE_SPLIT;
+    }
+
+    private String buildPersonalFolderPathWithSharedConflictCheck(String folderNameWithSlash, String userName) {
+        String sharedPath = getSharedPath() + folderNameWithSlash;
+        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, sharedPath)) > 0;
+        if (exists) {
+            throw new ClientException("已存在同名文件夹");
+        }
+        return getPath(userName) + folderNameWithSlash;
+    }
+
+    private String buildSharedFolderPathWithPersonalConflictCheck(String folderNameWithSlash, String username) {
+        String userPath = getPath(username) + folderNameWithSlash;
+        boolean exists = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, userPath)) > 0;
+        if (exists) {
+            throw new ClientException("已存在同名文件夹");
+        }
+        return getSharedPath() + folderNameWithSlash;
+    }
+
+    private void saveFolderToDB(LoginInfoUserDTO user, String path,boolean shared) {
         // 判断文件是否存在
-        long count = fileObjectService.count(Wrappers.<FileObject>lambdaQuery()
-            .likeRight(FileObject::getObjectName, path)
-            .eq(FileObject::getUserId, user.getId())
-            .eq(FileObject::getUserName, user.getUsername()));
+        LambdaQueryWrapper<FileObject> query = Wrappers.<FileObject>lambdaQuery()
+            .eq(FileObject::getObjectName, path);
+        if (!shared) {
+            query.eq(FileObject::getUserId, user.getId())
+                .eq(FileObject::getUserName, user.getUsername());
+        }
+        long count = fileObjectService.count(query);
         // 如果存在，则不保存
         if (count > 0) {
             throw new ClientException("已存在相同的文件夹名称");
@@ -493,19 +535,29 @@ public class FileManagerImpl implements FileManager {
      * @since 2025/06/12 15:24:19
      */
     public List<FileNodeResp> listFiles(String path) {
+        String userPath = getPath(LoginUserUtils.getLoginUserInfo().getUsername());
+        String sharedPath = getSharedPath();
+        LambdaQueryWrapper<FileObject> queryWrapper = Wrappers.lambdaQuery();
         if (StrUtil.isBlank(path)) {
-            path = getPath(LoginUserUtils.getLoginUserInfo().getUsername());
+            // 如果路径为空，显示根目录（用户自己的和公共的）
+            queryWrapper.likeRight(FileObject::getObjectName, userPath)
+                .or()
+                .likeRight(FileObject::getObjectName, sharedPath);
+        } else {
+            // 如果路径不为空，只查询指定路径下的文件
+            queryWrapper.likeRight(FileObject::getObjectName, path);
         }
-        List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
-            .likeRight(FileObject::getObjectName, path));
+
+        List<FileObject> fileObjects = fileObjectService.list(queryWrapper);
         // 获取文件id列表
         Map<Long, List<String>> recommendationMap = loadFileRecommendations(fileObjects);
         // 用于最终返回的列表
         List<FileNodeResp> fileNodes = new ArrayList<>();
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
+            String currentRootPath = StrUtil.isBlank(path) ? getPathForRoot(objectName, userPath, sharedPath) : path;
             // 移除前缀，得到相对路径
-            String relativePath = objectName.substring(path.length());
+            String relativePath = objectName.substring(currentRootPath.length());
             // 如果相对路径为空，或者就是它自己，跳过
             if (relativePath.isEmpty()) {
                 continue;
@@ -526,8 +578,8 @@ public class FileManagerImpl implements FileManager {
                 // 只取第一个'/'之前的部分，作为文件夹名
                 String folderName = relativePath.substring(0, relativePath.indexOf('/'));
                 // 获取该文件夹下的文件数量
-                int count = minioUtils.countFilePrefix(bucket, path + folderName);
-                getFileFolderNodeResp(path, fileObject, folderName, count, fileNodes);
+                int count = minioUtils.countFilePrefix(bucket, currentRootPath + folderName);
+                getFileFolderNodeResp(currentRootPath, fileObject, folderName, count, fileNodes);
             }
 
         }
@@ -535,6 +587,15 @@ public class FileManagerImpl implements FileManager {
         fileNodes.sort(Comparator.comparing(FileNodeResp::getType).reversed().thenComparing(FileNodeResp::getUploadTime, Comparator.reverseOrder()));
 
         return fileNodes;
+    }
+
+    private String getPathForRoot(String objectName, String userPath, String sharePath) {
+        if (objectName.startsWith(userPath)) {
+            return userPath;
+        } else if (objectName.startsWith(sharePath)) {
+            return sharePath;
+        }
+        return "";
     }
 
     private Map<Long, List<String>> loadFileRecommendations(List<FileObject> fileObjects) {
@@ -557,7 +618,24 @@ public class FileManagerImpl implements FileManager {
         node.setFileCount(fileCount);
         // 文件夹的路径要以'/'结尾
         node.setPath(path + folderName + FILE_SPLIT);
+        node.setTenantId(fileObject.getTenantId());
+        node.setUserId(fileObject.getUserId());
+        node.setFolderType(isSharedFolder(node.getPath()) ? FolderTypeEnum.SHARED.getCode() : FolderTypeEnum.PERSONAL.getCode());
         fileNodes.add(node);
+    }
+
+
+    /**
+     * 是否是共享文件夹
+     *
+     * @param objectName 对象名称
+     * @return boolean
+     * @author luhao
+     * @since 2025/09/19 09:40:03
+     *
+     */
+    private boolean isSharedFolder(String objectName) {
+        return objectName.startsWith(getSharedPath());
     }
 
     @NotNull
@@ -577,6 +655,8 @@ public class FileManagerImpl implements FileManager {
         node.setSize(FileUtils.formatFileSize(fileObject.getFileSize()));
         node.setUploadTime(fileObject.getCreateTime());
         node.setQuestions(recommendationMap.get(fileObject.getId()));
+        node.setTenantId(fileObject.getTenantId());
+        node.setUserId(fileObject.getUserId());
         return node;
     }
 
@@ -594,13 +674,17 @@ public class FileManagerImpl implements FileManager {
 
         // 3. 递归列出所有对象
         String path = getPath(LoginUserUtils.getLoginUserInfo().getUsername());
+        String sharedPath = getSharedPath();
         List<FileObject> fileObjects = fileObjectService.list(Wrappers.<FileObject>lambdaQuery()
-            .likeRight(FileObject::getObjectName, path));
+            .likeRight(FileObject::getObjectName, path)
+            .or()
+            .likeRight(FileObject::getObjectName, sharedPath));
         // 4. 遍历对象并构建树
         for (FileObject fileObject : fileObjects) {
             String objectName = fileObject.getObjectName();
             // 移除前缀，得到相对路径
-            String relativePath = objectName.substring(path.length());
+            String rootPath = getPathForRoot(objectName, path, sharedPath);
+            String relativePath = objectName.substring(rootPath.length());
             FileTreeNode currentNode = root;
             String[] parts = relativePath.split("/");
             for (int i = 0; i < parts.length; i++) {

@@ -85,8 +85,8 @@ threadpool:
     keep-alive-seconds: 60   # 线程空闲时间（秒）
     thread-name-prefix: "file-processor-" # 线程名前缀，便于日志排查
   file-upload:
-    core-pool-size: 20       # 核心线程数 (建议与CPU核心数相同)
-    max-pool-size: 30        # 最大线程数 (建议为CPU核心数的2倍)
-    queue-capacity: 1000      # 任务队列容量
+    core-pool-size: 2       # 核心线程数 (建议与CPU核心数相同)
+    max-pool-size: 4        # 最大线程数 (建议为CPU核心数的2倍)
+    queue-capacity: 50      # 任务队列容量
     keep-alive-seconds: 60   # 线程空闲时间（秒）
     thread-name-prefix: "file-upload-" # 线程名前缀，便于日志排查
