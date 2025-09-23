@@ -5,7 +5,6 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.alibaba.excel.read.metadata.holder.ReadRowHolder;
-import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.common.Constants;
@@ -70,7 +69,6 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
 
     @Override
     public void processDirectly(File file, Long fileId, int rowCount) {
-        log.warn("processDirectly - 当前租户: {}", TenantContext.getCurrentTenant());
         Long userId = fileObjectService.getUserIdByFileId(fileId);
         if (Objects.isNull(userId)) {
             return;

@@ -6,7 +6,6 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.read.builder.ExcelReaderBuilder;
 import com.alibaba.excel.support.ExcelTypeEnum;
 import com.google.common.collect.Sets;
-import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.systemcommon.exception.ServerException;
 import com.supcon.tptrecommend.common.enums.*;
 import com.supcon.tptrecommend.common.utils.*;
@@ -116,7 +115,6 @@ public class ExcelFileAnalysisHandle implements FileAnalysisHandle {
      * @since 2025/06/25 19:09:11
      */
     private void doHandle(File file, Long fileId, String originalFilename, Long userId, Integer category) {
-        log.warn("doHandle - 当前租户: {}", TenantContext.getCurrentTenant());
         //TODO: 处理业务报表数据
         if(Objects.nonNull(category)){
             Optional<BusinessDataHandler> handlerOptional = businessDataHandlerFactory.getHandler(category);

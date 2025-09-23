@@ -1,7 +1,6 @@
 package com.supcon.tptrecommend.manager.strategy.impl;
 
 import com.google.common.collect.Sets;
-import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.tptrecommend.common.utils.ProcessProgressSupport;
 import com.supcon.tptrecommend.common.utils.RandomUtil;
 import com.supcon.tptrecommend.entity.FileObject;
@@ -37,7 +36,6 @@ public class PdfFileFileAnalysisHandle implements FileAnalysisHandle {
 
     @Override
     public void handleFileAnalysis(Long fileId, Integer category) {
-        log.warn("handleFileAnalysis - 当前租户: {}", TenantContext.getCurrentTenant());
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
             log.error("PDF文件解析过程，文件：{}的记录不存在", fileId);
