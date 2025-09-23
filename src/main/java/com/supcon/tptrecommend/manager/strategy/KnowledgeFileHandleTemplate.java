@@ -69,6 +69,7 @@ public class KnowledgeFileHandleTemplate {
      */
     public void uploadToKnowledgeBase(Long fileId,String objectName, String bucketName, Long fileSize,Long userId) {
         CompletableFuture.runAsync(TtlRunnable.get(() -> {
+            log.warn("uploadToKnowledgeBase - 当前租户: {}", TenantContext.getCurrentTenant());
             KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(objectName, bucketName,fileSize, userId);
             if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
                 log.warn("上传文件到知识库成功，fileId：{}，resp：{}", fileId, JSONUtil.toJsonStr(resp));

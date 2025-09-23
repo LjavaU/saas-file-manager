@@ -1012,7 +1012,7 @@ public class FileManagerImpl implements FileManager {
 
         LoginInfoUserDTO loginUser = LoginUserUtils.getLoginUserInfo();
         String currentTenant = TenantContext.getCurrentTenant();
-
+        log.warn("batchUpload - 当前租户: {}", currentTenant);
         List<CompletableFuture<FileObjectResp>> futures = multipartFiles.stream()
             .map(file -> CompletableFuture.supplyAsync(() -> {
                 TenantContext.setCurrentTenant(currentTenant);
