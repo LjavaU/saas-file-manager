@@ -54,14 +54,15 @@ public class WordFileAnalysisHandle implements FileAnalysisHandle {
     public void handleFileAnalysis(Long fileId,Integer category) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
-            log.error("文件不存在，解析任务终止");
+            log.error("word文件解析过程，文件：{}的记录不存在", fileId);
             return;
         }
 
         // 通知解析进度
-        ProcessProgressSupport.notifyParseProcessing(fileId, fileObject.getUserId(), RandomUtil.getRandomPercentage(5, 10));
+        Long userId = fileObject.getUserId();
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
         // 上传知识库
-        knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId);
+        knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId, fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), userId);
         String objectName = fileObject.getObjectName();
         String uniqueFilename = FileUtils.getFileNameFromObjectKey(objectName);
         String originalName = fileObject.getOriginalName();

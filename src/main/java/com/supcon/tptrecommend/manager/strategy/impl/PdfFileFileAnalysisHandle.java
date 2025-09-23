@@ -38,12 +38,13 @@ public class PdfFileFileAnalysisHandle implements FileAnalysisHandle {
     public void handleFileAnalysis(Long fileId, Integer category) {
         FileObject fileObject = fileObjectService.getById(fileId);
         if (Objects.isNull(fileObject)) {
-            log.error("文件：{}的记录不存在", fileId);
+            log.error("PDF文件解析过程，文件：{}的记录不存在", fileId);
             return;
         }
         // 通知解析进度
-        ProcessProgressSupport.notifyParseProcessing(fileId, fileObject.getUserId(), RandomUtil.getRandomPercentage(5, 10));
+        Long userId = fileObject.getUserId();
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
         // 处理知识库 文件
-        knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId);
+        knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId, fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), userId);
     }
 }

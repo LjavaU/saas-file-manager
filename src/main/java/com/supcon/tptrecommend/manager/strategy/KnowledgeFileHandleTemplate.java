@@ -2,8 +2,8 @@ package com.supcon.tptrecommend.manager.strategy;
 
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.http.HttpStatus;
+import cn.hutool.json.JSONUtil;
 import com.alibaba.ttl.TtlRunnable;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.framework.tenant.core.getter.TenantContext;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.common.enums.KnowledgeParseState;
@@ -57,28 +57,32 @@ public class KnowledgeFileHandleTemplate {
     /**
      * 上传到知识库
      *
-     * @param fileId 文件 ID
+     * @param fileId     文件 ID
+     * @param objectName 对象名称
+     * @param bucketName 存储桶名称
+     * @param fileSize   文件大小
+     * @param userId     用户 ID
      * @author luhao
      * @since 2025/08/08 13:17:42
      *
      *
      */
-    public void uploadToKnowledgeBase(Long fileId) {
-        FileObject fileObject = fileObjectService.getOne(Wrappers.<FileObject>lambdaQuery()
-            .select(FileObject::getObjectName, FileObject::getFileSize, FileObject::getBucketName, FileObject::getUserId)
-            .eq(FileObject::getId, fileId));
-        Long userId = fileObject.getUserId();
+    public void uploadToKnowledgeBase(Long fileId,String objectName, String bucketName, Long fileSize,Long userId) {
         CompletableFuture.runAsync(TtlRunnable.get(() -> {
-            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), userId);
+            KnowledgeFileUploadResp<List<FileDataSimple>> resp = uploadFileUploadToKnowledge(objectName, bucketName,fileSize, userId);
             if (Objects.nonNull(resp) && (resp.getCode() == HttpStatus.HTTP_OK || CollectionUtil.isNotEmpty(resp.getData()))) {
+                log.warn("上传文件到知识库成功，fileId：{}，resp：{}", fileId, JSONUtil.toJsonStr(resp));
                 // 通知解析进度
                 ProcessProgressSupport.notifyParseProcessing(fileId,userId, RandomUtil.getRandomPercentage(15, 20) );
                 FileDataSimple fileDataSimple = resp.getData().get(0);
                 List<String> keyWords = fileDataSimple.getKey_words();
+                log.warn("文件：{}，关键词：{}", fileId, JSONUtil.toJsonStr(keyWords));
                 // 保存文件关键词到文件推荐表中
                 saveFileKeywordsToRecommendation(fileId, keyWords);
+                log.warn("开始更新文件解析状态，fileId：{}，status：{}", fileId, fileDataSimple.getStatus());
                 // 更新文件解析状态
                 updateKnowledgeParseState(fileId, fileDataSimple.getStatus());
+                log.warn("更新文件解析状态成功，fileId：{}", fileId);
             } else {
                 log.error("上传文件到知识库失败：{}", Objects.nonNull(resp) ? resp.getMsg() : "");
                 markKnowledgeFileAsParseFailed(fileId, userId);
