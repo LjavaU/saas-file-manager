@@ -158,6 +158,14 @@ public class FileController extends BasicController {
     }
 
 
+    /**
+     * 文件统计
+     *
+     * @return {@link SupResult }<{@link FileStatisticsResp }>
+     * @author luhao
+     * @since 2025/09/24 20:14:10
+     *
+     */
     @GetMapping("statistics")
     @ApiOperation("文件统计")
     @ApiOperationSupport(order = 14, author = "luhao")
