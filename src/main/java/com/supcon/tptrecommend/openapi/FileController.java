@@ -122,6 +122,7 @@ public class FileController extends BasicController {
     }
 
     @PostMapping("update")
+    @UnAuthentication
     @ApiOperation("更新文件属性")
     @ApiOperationSupport(order = 10, author = "luhao")
     @SysServiceLog(moduleName = "文件管理-更新文件属性", operateType = OperateTypeEnum.LOG_TYPE_UPDATE, onlyExceptions = true)
