@@ -22,10 +22,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * 位号历史数据处理器
@@ -56,7 +53,7 @@ public class TagHistoryDataHandler implements BusinessDataHandler {
     @Override
     public void batchSave(List<Object> dataList) {
         List<TagValueDTO> tagValueDTOS = castTargetObject(dataList, TagValueDTO.class);
-        SupResult<Boolean> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
+        SupResult<Map<String, Collection<String>>> supResult = dataHubFeign.importTagValue(SupRequestBody.data(tagValueDTOS));
         if (!supResult.getSuccess()) {
             log.error("位号历史数据保存失败：{}", supResult.getMsg());
         }

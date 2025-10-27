@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.validation.Valid;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 数据中心服务
@@ -44,7 +46,7 @@ public interface DataHubFeign {
      * @since 2025/06/25 18:38:49
      */
     @PostMapping("/api/tag-value/importTagValue")
-    SupResult<Boolean> importTagValue(@RequestBody @Valid SupRequestBody<List<TagValueDTO>> body);
+    SupResult<Map<String, Collection<String>>> importTagValue(@RequestBody @Valid SupRequestBody<List<TagValueDTO>> body);
 
     @Slf4j
     @Component
@@ -60,7 +62,7 @@ public interface DataHubFeign {
                 }
 
                 @Override
-                public SupResult<Boolean> importTagValue(SupRequestBody<List<TagValueDTO>> body) {
+                public SupResult<Map<String, Collection<String>>> importTagValue(SupRequestBody<List<TagValueDTO>> body) {
                     log.error("调用 DataHubFeign#importTagValue 失败", cause);
                     return SupResult.error("/api/tag-value/importTagValue接口调用异常!");
                 }
