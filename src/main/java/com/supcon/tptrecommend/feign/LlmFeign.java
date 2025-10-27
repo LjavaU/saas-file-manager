@@ -57,6 +57,19 @@ public interface LlmFeign {
     FileAlignmentResp alignment(@RequestBody FileAlignmentReq fileAlignmentReq);
 
 
+    /**
+     * 文件设备信息提取
+     *
+     * @param fileEquipmentExtractReq 文件设备提取请求体
+     * @return {@link Object }
+     * @author luhao
+     * @since 2025/09/30 10:47:54
+     *
+     */
+    @PostMapping(value = "/api/file/ner")
+    Object ner(@RequestBody FileEquipmentExtractReq fileEquipmentExtractReq);
+
+
     @Slf4j
     @Component
     class LlmFeignFallBack implements FallbackFactory<LlmFeign> {
@@ -86,6 +99,12 @@ public interface LlmFeign {
                 @Override
                 public FileAlignmentResp alignment(FileAlignmentReq fileAlignmentReq) {
                     log.error("/api/file/alignment接口访问出错",cause);
+                    return null;
+                }
+
+                @Override
+                public Object ner(FileEquipmentExtractReq fileEquipmentExtractReq) {
+                    log.error("/api/file/ner接口访问出错",cause);
                     return null;
                 }
             };
