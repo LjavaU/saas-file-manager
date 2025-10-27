@@ -5,6 +5,7 @@ import com.supcon.system.base.entity.AutoIdEntity;
 import com.supcon.system.base.entity.basic.impl.BasicServiceImpl;
 import com.supcon.tptrecommend.common.enums.FileStatus;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
+import com.supcon.tptrecommend.dto.fileobject.FileAttributesUpdatedCondition;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.dto.fileobject.FileStatisticsResp;
@@ -104,4 +105,15 @@ public class FileObjectServiceImpl extends BasicServiceImpl<FileObjectMapper, Fi
     public FileStatisticsResp getFileStatistics() {
         return fileObjectMapper.getFileStatistics();
     }
+
+    @Override
+    public FileObject getByObjectName(String objectName) {
+       return fileObjectMapper.getByObjectName(objectName);
+    }
+
+    @Override
+    public void updateFileAttributes(FileAttributesUpdatedCondition updatedCondition) {
+        fileObjectMapper.updateFileAttributes(updatedCondition);
+    }
+
 }

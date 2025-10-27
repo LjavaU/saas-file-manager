@@ -11,7 +11,6 @@ import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.supcon.framework.tenant.core.getter.TenantContext;
@@ -721,45 +720,39 @@ public class FileManagerImpl implements FileManager {
     public boolean update(FileAttributesUpdatedReq req) {
         // 校验请求
         validateRequest(req);
+        String objectName = req.getObjectName();
         // 查找文件是否存在
-        FileObject fileObject = findFileOrFail(req.getFileId(), req.getObjectName());
+        FileObject fileObject = findFileOrFail(objectName);
 
-        // 为所有更改准备一个更新包装器。
-        LambdaUpdateWrapper<FileObject> updateWrapper = new LambdaUpdateWrapper<>();
+        FileAttributesUpdatedCondition updatedCondition = new FileAttributesUpdatedCondition();
 
         // 处理类别更新（子类别和三级类别）。
-        updateCategoryProperties(req.getCategory(), fileObject, updateWrapper);
+        updateCategoryProperties(req.getCategory(), fileObject, updatedCondition);
 
         // 处理能力更新。
-        updateAbilityProperty(req.getAbility(), fileObject, updateWrapper);
+        updateAbilityProperty(req.getAbility(), fileObject, updatedCondition);
 
         // 仅当有更改时才执行单个数据库更新。
-        if (StrUtil.isBlank(updateWrapper.getSqlSet())) {
+        if (StrUtil.isAllBlank(updatedCondition.getSubCategory(), updatedCondition.getThirdLevelCategory(), updatedCondition.getAbility())) {
             return true;
         }
         // 为更新添加 WHERE 子句
-        updateWrapper.eq(Objects.nonNull(req.getFileId()), FileObject::getId, req.getFileId())
-            .eq(StrUtil.isNotBlank(req.getObjectName()), FileObject::getObjectName, req.getObjectName());
+        updatedCondition.setObjectName(objectName);
 
-        fileObjectService.update(new FileObject(), updateWrapper);
+        fileObjectService.updateFileAttributes(updatedCondition);
         return true;
 
 
     }
 
     private void validateRequest(FileAttributesUpdatedReq req) {
-        if (Objects.isNull(req.getFileId()) && StrUtil.isBlank(req.getObjectName())) {
-            throw new ClientException("必须提供文件ID或文件全路径参数中的任意一个");
-        }
         if (StrUtil.isAllBlank(req.getAbility(), req.getCategory())) {
             throw new ClientException("文件类别或者属性不能为空");
         }
     }
 
-    private FileObject findFileOrFail(Long fileId, String objectName) {
-        FileObject fileObject = fileObjectService.limitOne(Wrappers.<FileObject>lambdaQuery()
-            .eq(StrUtil.isNotBlank(objectName), FileObject::getObjectName, objectName)
-            .eq(Objects.nonNull(fileId), FileObject::getId, fileId));
+    private FileObject findFileOrFail( String objectName) {
+        FileObject fileObject = fileObjectService.getByObjectName(objectName);
         if (Objects.isNull(fileObject)) {
             throw new ClientException("文件不存在");
         }
@@ -769,7 +762,7 @@ public class FileManagerImpl implements FileManager {
     /**
      * 将类别相关字段添加到更新包装器。
      */
-    private void updateCategoryProperties(String categoryIdentifier, FileObject fileObject, LambdaUpdateWrapper<FileObject> wrapper) {
+    private void updateCategoryProperties(String categoryIdentifier, FileObject fileObject, FileAttributesUpdatedCondition updatedCondition) {
         if (StrUtil.isBlank(categoryIdentifier)) {
             return;
         }
@@ -779,22 +772,22 @@ public class FileManagerImpl implements FileManager {
             // 更新 sub-category (二级分类)
             Optional.ofNullable(association.getCategoryType())
                 .map(type -> mergeProperties(String.valueOf(type.getCode()), fileObject.getSubCategory()))
-                .ifPresent(merged -> wrapper.set(FileObject::getSubCategory, merged));
+                .ifPresent(updatedCondition::setSubCategory);
 
             // 更新 third-level category (三级分类)
             Optional.ofNullable(association.getTagHistoryCategory())
                 .map(type -> mergeProperties(String.valueOf(type.getCode()), fileObject.getThirdLevelCategory()))
-                .ifPresent(merged -> wrapper.set(FileObject::getThirdLevelCategory, merged));
+                .ifPresent(updatedCondition::setThirdLevelCategory);
         }
     }
 
     /**
      * 将能力字段添加到更新包装器。
      */
-    private void updateAbilityProperty(String newAbility, FileObject fileObject, LambdaUpdateWrapper<FileObject> wrapper) {
+    private void updateAbilityProperty(String newAbility, FileObject fileObject, FileAttributesUpdatedCondition updatedCondition) {
         String mergedAbility = mergeProperties(newAbility, fileObject.getAbility());
         if (mergedAbility != null) {
-            wrapper.set(FileObject::getAbility, mergedAbility);
+            updatedCondition.setAbility(mergedAbility);
         }
     }
 

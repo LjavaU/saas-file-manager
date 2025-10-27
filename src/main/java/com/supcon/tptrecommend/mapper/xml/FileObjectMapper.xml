@@ -6,28 +6,46 @@
        无法满足的场景，例如说多表关联查询，才使用 XML 编写 SQL。
     -->
 
-        <!-- 通用查询映射结果 -->
+    <!-- 通用查询映射结果 -->
     <resultMap id="BaseResultMap" type="com.supcon.tptrecommend.entity.FileObject">
-            <result column="id" property="id"/>
-            <result column="tenant_id" property="tenantId"/>
-            <result column="create_time" property="createTime"/>
-            <result column="update_time" property="updateTime"/>
-            <result column="user_id" property="userId"/>
-            <result column="user_name" property="userName"/>
-            <result column="object_name" property="objectName"/>
-            <result column="original_name" property="originalName"/>
-            <result column="bucket_name" property="bucketName"/>
-            <result column="content_type" property="contentType"/>
-            <result column="file_size" property="fileSize"/>
-            <result column="tags" property="tags"/>
+        <result column="id" property="id"/>
+        <result column="tenant_id" property="tenantId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="object_name" property="objectName"/>
+        <result column="original_name" property="originalName"/>
+        <result column="bucket_name" property="bucketName"/>
+        <result column="content_type" property="contentType"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="tags" property="tags"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-            id,
+        id
+        ,
             tenant_id,
             create_time,
             update_time,
         user_id, user_name, object_name, original_name, bucket_name, content_type, file_size, tags
     </sql>
+
+    <update id="updateFileAttributes">
+        UPDATE file_object
+        <set>
+            <if test="req.subCategory != null and req.subCategory != ''">
+                sub_category = #{req.subCategory},
+            </if>
+            <if test="req.thirdLevelCategory != null and req.thirdLevelCategory != ''">
+                third_level_category = #{req.thirdLevelCategory},
+            </if>
+            <if test="req.ability != null and req.ability != ''">
+                ability = #{req.ability},
+            </if>
+            update_time = NOW()
+        </set>
+        WHERE object_name = #{req.objectName}
+    </update>
 </mapper>

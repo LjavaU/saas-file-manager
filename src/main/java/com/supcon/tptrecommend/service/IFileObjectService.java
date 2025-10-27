@@ -2,6 +2,7 @@ package com.supcon.tptrecommend.service;
 
 import com.supcon.system.base.entity.basic.IBasicService;
 import com.supcon.tptrecommend.common.enums.FileStatus;
+import com.supcon.tptrecommend.dto.fileobject.FileAttributesUpdatedCondition;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectCreateReq;
 import com.supcon.tptrecommend.dto.fileobject.FileObjectResp;
 import com.supcon.tptrecommend.dto.fileobject.FileStatisticsResp;
@@ -72,4 +73,27 @@ public interface IFileObjectService extends IBasicService<FileObject> {
     Long getUserIdByFileId(Long fileId);
 
     FileStatisticsResp getFileStatistics();
+
+    /**
+     * 根据对象获取文件信息
+     *
+     * @param objectName 对象名称
+     * @return {@link FileObject }
+     * @author luhao
+     * @since 2025/10/27 16:28:09
+     *
+     */
+    FileObject getByObjectName(String objectName);
+
+
+    /**
+     * 更新文件属性
+     *
+     * @param updatedCondition
+     * @author luhao
+     * @since 2025/10/27 16:29:18
+     *
+     *
+     */
+    void updateFileAttributes(FileAttributesUpdatedCondition updatedCondition);
 }
