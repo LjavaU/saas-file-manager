@@ -34,7 +34,9 @@ import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
+import io.minio.Result;
 import io.minio.StatObjectResponse;
+import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -57,6 +59,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 @Slf4j
@@ -751,7 +755,7 @@ public class FileManagerImpl implements FileManager {
         }
     }
 
-    private FileObject findFileOrFail( String objectName) {
+    private FileObject findFileOrFail(String objectName) {
         FileObject fileObject = fileObjectService.getByObjectName(objectName);
         if (Objects.isNull(fileObject)) {
             throw new ClientException("文件不存在");
@@ -1027,5 +1031,68 @@ public class FileManagerImpl implements FileManager {
         // 创建文件处理任务
         fileObjectResps.forEach(fileResp -> doFileProcess(fileResp.getId(), loginUser.getId(), fileResp.getOriginalName(), null));
         return fileObjectResps;
+    }
+
+    public void downloadTenantFilesAsZip(String tenantId, String userName, HttpServletResponse response) {
+        String tenantPrefix;
+        if (StrUtil.isNotBlank(userName)) {
+            tenantPrefix = tenantId + "/" + userName + "/";
+        } else {
+            tenantPrefix = tenantId + "/";
+        }
+
+        // 1. 设置HTTP响应头
+        // 告知浏览器这是一个zip文件
+        response.setContentType("application/zip");
+        // 告知浏览器这是附件，并设置默认文件名
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + tenantId + "_files.zip\"");
+
+        // 2. 创建ZipOutputStream，它会把数据写入HTTP响应流
+        try (ZipOutputStream zipOut = new ZipOutputStream(response.getOutputStream())) {
+            // 3. 构造MinIO查询
+            Iterable<Result<Item>> results = minioUtils.listObjects(bucket, tenantPrefix);
+            // 用于流式读写的缓冲区
+            byte[] buffer = new byte[8192]; // 8KB buffer
+            // 4. 遍历MinIO中的文件
+            for (Result<Item> result : results) {
+                Item item = result.get();
+                String fullObjectPath = item.objectName();
+                // 跳过 "文件夹" 对象 (它们通常以 '/' 结尾且大小为0)
+                if (fullObjectPath.endsWith("/")) {
+                    continue;
+                }
+                // 5. 计算Zip包内的相对路径 (关键步骤)
+                // "tenant-a/user-1/report.pdf" -> "user-1/report.pdf"
+                String relativePath = fullObjectPath.substring(tenantPrefix.length());
+
+                // 6. 从MinIO获取该文件的输入流
+                try (InputStream fileStream = minioUtils.getFileInputStream(bucket, fullObjectPath)) {
+                    // 7. 在Zip流中创建一个新条目 (Entry)
+                    ZipEntry zipEntry = new ZipEntry(relativePath);
+                    zipOut.putNextEntry(zipEntry);
+                    // 8. 将MinIO文件流 写入 Zip流
+                    int bytesRead;
+                    while ((bytesRead = fileStream.read(buffer)) > 0) {
+                        zipOut.write(buffer, 0, bytesRead);
+                    }
+                    // 9. 关闭当前条目，准备下一个
+                    zipOut.closeEntry();
+
+                } catch (Exception e) {
+                    // 某个文件下载失败，可以记录日志并继续处理下一个文件
+                    log.error("下载文件时发生错误，跳过文件: {}", fullObjectPath, e);
+                }
+            }
+            // 10. 完成Zip流的写入
+            zipOut.finish();
+
+        } catch (Exception e) {
+            // 处理顶层IO异常 (例如客户端断开连接)
+            log.error("创建Zip文件时发生错误", e);
+            // 此时设置HTTP状态码可能已为时已晚，但可以尝试
+            if (!response.isCommitted()) {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
+        }
     }
 }

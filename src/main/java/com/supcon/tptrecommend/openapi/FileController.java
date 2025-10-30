@@ -192,4 +192,15 @@ public class FileController extends BasicController {
         return data(fileManager.batchUpload(multipartFiles, path));
     }
 
+
+    @GetMapping(value = "/downloadFilesAsZip")
+    @ApiOperation("下载某个租户下的文件")
+    @ApiOperationSupport(order = 16, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-下载某个租户下的文件", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public void downloadTenantFilesAsZip(@RequestParam String tenantId,String userName, HttpServletResponse response) {
+        fileManager.downloadTenantFilesAsZip(tenantId,userName, response);
+
+    }
+
+
 }
