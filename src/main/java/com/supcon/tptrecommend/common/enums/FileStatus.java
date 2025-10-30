@@ -14,7 +14,8 @@ import lombok.Getter;
 public enum FileStatus {
     UNPARSED(0, "未解析"),
     PARSED(1, "解析完成"),
-    PARSE_FAILED(2, "解析失败");
+    PARSE_FAILED(2, "解析失败"),
+    PARSE_NOT_SUPPORT(3, "不支持解析");
 
     private final Integer value;
     private final String desc;
