@@ -215,19 +215,26 @@ public class FileManagerImpl implements FileManager {
             }
         } else {
             log.error("文件：{},不支持解析", originalFilename);
+            // 不支持解析的文件，直接标记为不支持
+            markFileParseNotSupport(fileId, userId);
         }
     }
 
+    private void markFileParseNotSupport(Long fileId, Long userId) {
+        updateFileParseStatus(fileId, FileStatus.PARSE_NOT_SUPPORT);
+        ProcessProgressSupport.notifyParseComplete(fileId, userId);
+    }
 
-    private void updateFileStatusParseFailed(Long fileId) {
+
+    private void updateFileParseStatus(Long fileId,FileStatus fileStatus) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
-        fileObject.setFileStatus(FileStatus.PARSE_FAILED.getValue());
+        fileObject.setFileStatus(fileStatus.getValue());
         fileObjectService.updateById(fileObject);
     }
 
     private void markFileAsParseFailed(Long fileId, Long userId) {
-        updateFileStatusParseFailed(fileId);
+        updateFileParseStatus(fileId, FileStatus.PARSE_FAILED);
         ProcessProgressSupport.notifyParseComplete(fileId, userId);
     }
 
@@ -1063,7 +1070,7 @@ public class FileManagerImpl implements FileManager {
                 }
                 // 5. 计算Zip包内的相对路径 (关键步骤)
                 // "tenant-a/user-1/report.pdf" -> "user-1/report.pdf"
-                String relativePath = fullObjectPath.substring(tenantPrefix.length());
+                String relativePath = removeRelativePathUUID(fullObjectPath.substring(tenantPrefix.length()));
 
                 // 6. 从MinIO获取该文件的输入流
                 try (InputStream fileStream = minioUtils.getFileInputStream(bucket, fullObjectPath)) {
@@ -1093,6 +1100,24 @@ public class FileManagerImpl implements FileManager {
             if (!response.isCommitted()) {
                 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
+        }
+    }
+
+    private String removeRelativePathUUID(String relativePath) {
+        // tenantId/userName/uuid_originalFileName.ext   tenantId/userName/folder/uuid_originalFileName.ext
+        int lastSlashIndex = relativePath.lastIndexOf("/");
+        if (lastSlashIndex != -1) {
+            String prefixPart = relativePath.substring(0, lastSlashIndex + 1);
+            String fileName = relativePath.substring(lastSlashIndex + 1);
+            String originalName = fileName.substring(fileName.indexOf("_") + 1);
+            return prefixPart + originalName;
+        } else {
+            int underscoreIndex = relativePath.indexOf("_");
+            if (underscoreIndex != -1) {
+                return relativePath.substring(underscoreIndex + 1);
+            }
+            return relativePath;
+
         }
     }
 }
