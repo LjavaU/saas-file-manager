@@ -156,4 +156,6 @@ public interface FileManager {
     FileStatisticsResp fileStatistics();
 
     List<FileObjectResp> batchUpload(List<MultipartFile> multipartFiles, String path);
+
+    void downloadTenantFilesAsZip(String tenantId, String userName, HttpServletResponse response);
 }

@@ -299,6 +299,25 @@ public class MinioUtils {
         return list;
     }
 
+    /**
+     * 根据前缀列出对象
+     *
+     * @param bucketName 存储桶名称
+     * @param prefix     前缀
+     * @return {@link Iterable }<{@link Result }<{@link Item }>>
+     * @author luhao
+     * @since 2025/10/30 13:31:47
+     *
+     */
+    public Iterable<Result<Item>> listObjects(String bucketName, String prefix) {
+        return minioClient.listObjects(ListObjectsArgs.builder()
+            .bucket(bucketName)
+            .prefix(prefix)
+            .recursive(true)
+            .build());
+
+    }
+
 
     /**
      * 获取文件字节
