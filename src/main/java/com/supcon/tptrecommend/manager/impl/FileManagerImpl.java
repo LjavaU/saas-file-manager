@@ -226,7 +226,7 @@ public class FileManagerImpl implements FileManager {
     }
 
 
-    private void updateFileParseStatus(Long fileId,FileStatus fileStatus) {
+    private void updateFileParseStatus(Long fileId, FileStatus fileStatus) {
         FileObject fileObject = new FileObject();
         fileObject.setId(fileId);
         fileObject.setFileStatus(fileStatus.getValue());
@@ -1042,17 +1042,20 @@ public class FileManagerImpl implements FileManager {
 
     public void downloadTenantFilesAsZip(String tenantId, String userName, HttpServletResponse response) {
         String tenantPrefix;
-        if (StrUtil.isNotBlank(userName)) {
+        if (StrUtil.isAllNotBlank(tenantId, userName)) {
             tenantPrefix = tenantId + "/" + userName + "/";
-        } else {
+        } else if (StrUtil.isBlank(userName) && StrUtil.isNotBlank(tenantId)) {
             tenantPrefix = tenantId + "/";
+        } else {
+            tenantPrefix = "";
         }
 
         // 1. 设置HTTP响应头
         // 告知浏览器这是一个zip文件
         response.setContentType("application/zip");
+        String name = StrUtil.isBlank(tenantId) ? "all_" : tenantId;
         // 告知浏览器这是附件，并设置默认文件名
-        response.setHeader("Content-Disposition", "attachment; filename=\"" + tenantId + "_files.zip\"");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + name + "_files.zip\"");
 
         // 2. 创建ZipOutputStream，它会把数据写入HTTP响应流
         try (ZipOutputStream zipOut = new ZipOutputStream(response.getOutputStream())) {
@@ -1070,7 +1073,8 @@ public class FileManagerImpl implements FileManager {
                 }
                 // 5. 计算Zip包内的相对路径 (关键步骤)
                 // "tenant-a/user-1/report.pdf" -> "user-1/report.pdf"
-                String relativePath = removeRelativePathUUID(fullObjectPath.substring(tenantPrefix.length()));
+                //String relativePath = removeRelativePathUUID(fullObjectPath.substring(tenantPrefix.length()));
+                String relativePath = fullObjectPath.substring(tenantPrefix.length());
 
                 // 6. 从MinIO获取该文件的输入流
                 try (InputStream fileStream = minioUtils.getFileInputStream(bucket, fullObjectPath)) {
