@@ -25,6 +25,7 @@ import com.supcon.tptrecommend.common.utils.*;
 import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
+import com.supcon.tptrecommend.dto.fileshare.FileShareRequest;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.entity.FileRecommendation;
 import com.supcon.tptrecommend.feign.KnowledgeFeign;
@@ -34,6 +35,7 @@ import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
 import com.supcon.tptrecommend.service.IFileObjectService;
 import com.supcon.tptrecommend.service.IFileRecommendationService;
+import io.jsonwebtoken.Claims;
 import io.minio.Result;
 import io.minio.StatObjectResponse;
 import io.minio.messages.Item;
@@ -44,14 +46,20 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -90,11 +98,14 @@ public class FileManagerImpl implements FileManager {
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
+    private final JwtService jwtService;
+
     public FileManagerImpl(MinioUtils minioUtils,
                            IFileObjectService fileObjectService,
                            KnowledgeFeign knowledgeFeign,
                            IFileRecommendationService fileRecommendationService,
                            FileAnalysisHandleFactory fileAnalysisHandleFactory,
+                           JwtService jwtService,
                            @Qualifier("fileProcessingTaskExecutor") Executor fileProcessingExecutor,
                            @Qualifier("fileUploadTaskExecutor") Executor fileUploadExecutor) {
         this.minioUtils = minioUtils;
@@ -102,6 +113,7 @@ public class FileManagerImpl implements FileManager {
         this.knowledgeFeign = knowledgeFeign;
         this.fileRecommendationService = fileRecommendationService;
         this.fileAnalysisHandleFactory = fileAnalysisHandleFactory;
+        this.jwtService = jwtService;
         this.fileProcessingExecutor = fileProcessingExecutor;
         this.fileUploadExecutor = fileUploadExecutor;
     }
@@ -1123,5 +1135,85 @@ public class FileManagerImpl implements FileManager {
             return relativePath;
 
         }
+    }
+
+
+    @Override
+    public String createShareLink(FileShareRequest request) {
+        // 1. 生成Token
+        String token = jwtService.generateDownloadToken(
+            request.getBucketName(),
+            request.getObjectName(),
+            request.getExpirationSecond()
+        );
+        // 2. 自动构建完整的下载URL
+        return UriComponentsBuilder
+            .fromPath("/open-api/file/link-download")
+            .queryParam("ticket", token)
+            .toUriString();
+    }
+
+    @Override
+    public ResponseEntity<StreamingResponseBody> linkDownload(String token) {
+        // 1. 验证Token (签名, 过期时间)
+        Optional<Claims> claimsOptional = jwtService.validateAndParseToken(token);
+        if (!claimsOptional.isPresent()) {
+            throw new ClientException("链接无效或已过期");
+        }
+        // 2. 从Token中解析数据
+        Claims claims = claimsOptional.get();
+        String bucketName = jwtService.getBucket(claims);
+        String objectName = jwtService.getObject(claims);
+        StatObjectResponse metadata = minioUtils.getMetadata(bucketName, objectName);
+        StreamingResponseBody responseBody = outputStream -> {
+            try (InputStream inputStream = minioUtils.getFileInputStream(bucketName, objectName)) {
+                // 流式复制: 从 MinIO -> Spring Boot -> 用户
+                StreamUtils.copy(inputStream, outputStream);
+            } catch (Exception e) {
+                log.error("Streaming error for object: {}", objectName, e);
+
+            }
+        };
+        // 6. 设置响应头
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + encodeFilename(FileUtils.getFileNameFromObjectKey(objectName)) + "\"")
+            .header(HttpHeaders.CONTENT_TYPE, metadata.contentType())
+            .contentLength(metadata.size())
+            .body(responseBody);
+    }
+
+    /**
+     *
+     * 处理文件名中的特殊字符和中文
+     *
+     * @param filename 文件名
+     * @return {@link String }
+     */
+    private String encodeFilename(String filename) {
+        try {
+            return URLEncoder.encode(filename, StandardCharsets.UTF_8.toString()).replace("+", "%20");
+        } catch (UnsupportedEncodingException e) {
+            return filename;
+        }
+    }
+
+    @Override
+    public void reParse(Long fileId) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (Objects.isNull(fileObject)) {
+            throw new ClientException("文件未找到");
+        }
+        Integer unparsedStatus = FileStatus.UNPARSED.getValue();
+        // 如果文件状态不是未解析状态，则将文件状态设置为未解析状态
+        fileObjectService.update(new FileObject(), Wrappers.<FileObject>lambdaUpdate()
+            .set(FileObject::getFileStatus, unparsedStatus)
+            .eq(AutoIdEntity::getId, fileId));
+        Long userId = LoginUserUtils.getLoginUserInfo().getId();
+        String originalName = fileObject.getOriginalName();
+
+        // 根据目标类型处理文件
+        doFileProcess(fileId, userId, originalName, null);
+
+
     }
 }

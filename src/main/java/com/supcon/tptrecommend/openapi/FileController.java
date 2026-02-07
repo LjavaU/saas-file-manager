@@ -11,15 +11,18 @@ import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.systemcommon.entity.SupResult;
 import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
+import com.supcon.tptrecommend.dto.fileshare.FileShareRequest;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.manager.FileManager;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
@@ -202,6 +205,35 @@ public class FileController extends BasicController {
         fileManager.downloadTenantFilesAsZip(tenantId,userName, response);
 
     }
+
+    @PostMapping("/share-link")
+    @ApiOperation("文件分享链接")
+    @UnAuthentication
+    @ApiOperationSupport(order = 17, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-获取文件的分享（下载）链接", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<String> getShareLink(@Validated @RequestBody FileShareRequest request) {
+        return data(fileManager.createShareLink(request));
+    }
+
+    @GetMapping("/link-download")
+    @ApiOperation("文件链接下载")
+    @UnAuthentication
+    @ApiOperationSupport(order = 18, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-文件链接下载", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public ResponseEntity<StreamingResponseBody> linkDownload(@RequestParam String ticket) {
+        return fileManager.linkDownload(ticket);
+    }
+
+
+    @GetMapping("reParse/{fileId}")
+    @ApiOperation("重新进行文件解析")
+    @ApiOperationSupport(order = 19, author = "luhao")
+    @SysServiceLog(moduleName = "文件管理-重新进行文件解析", operateType = OperateTypeEnum.LOG_TYPE_LOOK, onlyExceptions = true)
+    public SupResult<Integer> reParse(@PathVariable Long fileId) {
+        fileManager.reParse(fileId);
+        return SupResult.success();
+    }
+
 
 
 }

@@ -1,5 +1,6 @@
 package com.supcon.tptrecommend.common.utils;
 
+import com.supcon.systemcommon.exception.ClientException;
 import com.supcon.systemcommon.exception.ServerException;
 import io.minio.*;
 import io.minio.messages.DeleteError;
@@ -360,7 +361,7 @@ public class MinioUtils {
                     .object(objectName)
                     .build());
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new ClientException("文件不存在");
         }
     }
 

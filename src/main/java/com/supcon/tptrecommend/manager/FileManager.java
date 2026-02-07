@@ -5,8 +5,11 @@ import com.supcon.systemcommon.entity.IDList;
 import com.supcon.systemcommon.entity.SupRequestBody;
 import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
+import com.supcon.tptrecommend.dto.fileshare.FileShareRequest;
 import com.supcon.tptrecommend.entity.FileObject;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
@@ -158,4 +161,23 @@ public interface FileManager {
     List<FileObjectResp> batchUpload(List<MultipartFile> multipartFiles, String path);
 
     void downloadTenantFilesAsZip(String tenantId, String userName, HttpServletResponse response);
+
+
+    /**
+     * 创建文件分享链接
+     *
+     * @param request 请求体
+     * @return {@link String }
+     */
+    String createShareLink(FileShareRequest request);
+
+    /**
+     * 分享链接下载
+     *
+     * @param ticket 票据
+     * @return {@link ResponseEntity }<{@link StreamingResponseBody }>
+     */
+    ResponseEntity<StreamingResponseBody> linkDownload(String ticket);
+
+    void reParse(Long fileId);
 }
