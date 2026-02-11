@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8088
 
 spring:
   application:
@@ -11,3 +11,7 @@ sup:
     title: "tpt-recommend"
     description: "TptUserposApplication"
     version: "1.0.0-SNAPSHOT"
+
+tpt:
+  mq:
+    file-parse-binding: tpt.recommend.file.parse

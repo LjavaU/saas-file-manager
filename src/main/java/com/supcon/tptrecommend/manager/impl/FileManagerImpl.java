@@ -8,7 +8,6 @@ import cn.hutool.json.JSONUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
-import com.alibaba.ttl.TtlRunnable;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -26,10 +25,12 @@ import com.supcon.tptrecommend.convert.fileobject.FileObjectConvert;
 import com.supcon.tptrecommend.dto.fileUpload.ExcelUploadRequest;
 import com.supcon.tptrecommend.dto.fileobject.*;
 import com.supcon.tptrecommend.dto.fileshare.FileShareRequest;
+import com.supcon.tptrecommend.dto.mq.FileParseTaskMessage;
 import com.supcon.tptrecommend.entity.FileObject;
 import com.supcon.tptrecommend.entity.FileRecommendation;
 import com.supcon.tptrecommend.feign.KnowledgeFeign;
 import com.supcon.tptrecommend.feign.entity.knowledge.KnowledgeFileUploadResp;
+import com.supcon.tptrecommend.integration.mq.FileParseTaskProducer;
 import com.supcon.tptrecommend.manager.FileManager;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandle;
 import com.supcon.tptrecommend.manager.strategy.FileAnalysisHandleFactory;
@@ -92,13 +93,13 @@ public class FileManagerImpl implements FileManager {
 
     private final IFileRecommendationService fileRecommendationService;
 
-    private final Executor fileProcessingExecutor;
-
     private final Executor fileUploadExecutor;
 
     private final FileAnalysisHandleFactory fileAnalysisHandleFactory;
 
     private final JwtService jwtService;
+
+    private final FileParseTaskProducer fileParseTaskProducer;
 
     public FileManagerImpl(MinioUtils minioUtils,
                            IFileObjectService fileObjectService,
@@ -106,7 +107,7 @@ public class FileManagerImpl implements FileManager {
                            IFileRecommendationService fileRecommendationService,
                            FileAnalysisHandleFactory fileAnalysisHandleFactory,
                            JwtService jwtService,
-                           @Qualifier("fileProcessingTaskExecutor") Executor fileProcessingExecutor,
+                           FileParseTaskProducer fileParseTaskProducer,
                            @Qualifier("fileUploadTaskExecutor") Executor fileUploadExecutor) {
         this.minioUtils = minioUtils;
         this.fileObjectService = fileObjectService;
@@ -114,7 +115,7 @@ public class FileManagerImpl implements FileManager {
         this.fileRecommendationService = fileRecommendationService;
         this.fileAnalysisHandleFactory = fileAnalysisHandleFactory;
         this.jwtService = jwtService;
-        this.fileProcessingExecutor = fileProcessingExecutor;
+        this.fileParseTaskProducer = fileParseTaskProducer;
         this.fileUploadExecutor = fileUploadExecutor;
     }
 
@@ -211,24 +212,24 @@ public class FileManagerImpl implements FileManager {
 
     private void doFileProcess(Long fileId, Long userId, String originalFilename, Integer category) {
         Optional<FileAnalysisHandle> handler = fileAnalysisHandleFactory.getHandler(FilenameUtils.getExtension(originalFilename));
-        if (handler.isPresent()) {
-            FileAnalysisHandle fileAnalysisHandle = handler.get();
-            try {
-                CompletableFuture.runAsync(TtlRunnable.get(() -> {
-                    fileAnalysisHandle.handleFileAnalysis(fileId, category);
-                }), fileProcessingExecutor).exceptionally(throwable -> {
-                    log.error("文件：{},在处理过程中失败", originalFilename, throwable);
-                    markFileAsParseFailed(fileId, userId);
-                    return null;
-                });
-            } catch (RejectedExecutionException e) {
-                log.error("文件解析已经达到负载，拒绝执行");
-                markFileAsParseFailed(fileId, userId);
-            }
-        } else {
-            log.error("文件：{},不支持解析", originalFilename);
-            // 不支持解析的文件，直接标记为不支持
+        if (!handler.isPresent()) {
+            log.error("Unsupported file type for parse. fileId={}, fileName={}", fileId, originalFilename);
             markFileParseNotSupport(fileId, userId);
+            return;
+        }
+
+        FileParseTaskMessage parseTaskMessage = FileParseTaskMessage.builder()
+            .fileId(fileId)
+            .userId(userId)
+            .originalFilename(originalFilename)
+            .category(category)
+            .tenantId(TenantContext.getCurrentTenant())
+            .build();
+        try {
+            fileParseTaskProducer.send(parseTaskMessage);
+        } catch (Exception e) {
+            log.error("Failed to publish parse task to MQ. fileId={}", fileId, e);
+            markFileAsParseFailed(fileId, userId);
         }
     }
 

@@ -90,6 +90,10 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.supcon</groupId>
+            <artifactId>sup-spring-boot-starter-mq</artifactId>
+        </dependency>
     </dependencies>
 
 

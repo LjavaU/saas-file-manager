@@ -6,8 +6,8 @@ spring:
       max-file-size: 10240MB
       max-request-size: 10240MB
   redis:
-    host: localhost
-    port: 6379
+    host: gateway.supcon5t.com
+    port: 26379
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -90,3 +90,10 @@ threadpool:
     queue-capacity: 50      # 任务队列容量
     keep-alive-seconds: 60   # 线程空闲时间（秒）
     thread-name-prefix: "file-upload-" # 线程名前缀，便于日志排查
+app:
+  security:
+    jwt-download-secret: "yXd3ecoPzJLfNvAI7Aq3ay9LPj4V2QxP9WSxJ1ZYDjt1i9gIkyUASsPd7rOOlpuPFeoeCirtvTjxJpbvVnuSaw=="
+
+
+
+
