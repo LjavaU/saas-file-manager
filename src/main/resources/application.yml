@@ -3,15 +3,14 @@ server:
 
 spring:
   application:
-    name: tpt-recommend
+    name: saas-file
 
 sup:
   swagger:
-    api-base-package: "com.supcon"
-    title: "tpt-recommend"
-    description: "TptUserposApplication"
+    api-base-package: "com.example"
+    title: "saas-file"
+    description: "Neutralized File  Service"
     version: "1.0.0-SNAPSHOT"
 
-tpt:
-  mq:
-    file-parse-binding: tpt.recommend.file.parse
+mq:
+  file-parse-binding: saas.file.parse.parse

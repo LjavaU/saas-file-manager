@@ -6,7 +6,7 @@ spring:
       max-file-size: 10240MB
       max-request-size: 10240MB
   redis:
-    host: gateway.supcon5t.com
+    host: localhost
     port: 26379
   flyway:
     enabled: true
@@ -15,20 +15,20 @@ spring:
 sup:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://seak8sm1.supcon5t.com:31230/tpt_recommend?characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowMultiQueries=true
-    username: postgres
-    password: Supcon@1304
+    url: jdbc:postgresql://localhost:5432/saas-file?characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+    username: app_user
+    password: change_me
   log:
     addr: http://localhost:8080
     remote:
       enabled: false
   schedule:
     username: admin
-    password: 123456
-    addresses: system-schedule-obp-dev.supcon5t.com/xxl-job-admin
+    password: change_me
+    addresses: localhost:8080/xxl-job-admin
     executor:
-      address: http://10.30.75.78:9998
-      appName: tpt-recommend-local
+      address: http://127.0.0.1:9998
+      appName: saas-file-manager
   tenant:
     dt: 0
     enabled: true
@@ -46,9 +46,9 @@ sup:
     globalSend: true
 
 minio:
-  endpoint: http://seak8sm1.supcon5t.com:30350
-  accessKey: admin
-  secretKey: Supcon1304
+  endpoint: http://localhost:9000
+  accessKey: minioadmin
+  secretKey: change_me
   bucket: recommend  #桶
 feign:
   okhttp:
@@ -60,36 +60,21 @@ mybatis-plus:
     #log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 service:
   llm:
-    address: http://supcon-file-parsing-indu-dev.supcon5t.com
+    address: http://localhost:18080
   dataHub:
-    address: http://data-hub-obp-dev.supcon5t.com
+    address: http://localhost:18081
   tempLabel:
-    address: http://10.30.75.82:8080
+    address: http://localhost:18082
   autoSupervision:
-    address: http://auto-supervision-gpt-dev.supcon5t.com
+    address: http://localhost:18083
   pid:
-    address: http://obp-dev.supcon5t.com/xpt-tpt-pid/
+    address: http://localhost:18084
   index:
-    address: http://tpt-index-gpt-dev.supcon5t.com
+    address: http://localhost:18085
   knowledge:
-    address: http://supcon-rag-indu-dev.supcon5t.com
+    address: http://localhost:18086
 file:
   temp-dir: D:/temp/uploads
-# 自定义线程池配置
-threadpool:
-  # 文件处理线程池配置
-  file-processing:
-    core-pool-size: 20       # 核心线程数 (建议与CPU核心数相同)
-    max-pool-size: 40        # 最大线程数 (建议为CPU核心数的2倍)
-    queue-capacity: 500      # 任务队列容量
-    keep-alive-seconds: 60   # 线程空闲时间（秒）
-    thread-name-prefix: "file-processor-" # 线程名前缀，便于日志排查
-  file-upload:
-    core-pool-size: 2       # 核心线程数 (建议与CPU核心数相同)
-    max-pool-size: 4        # 最大线程数 (建议为CPU核心数的2倍)
-    queue-capacity: 50      # 任务队列容量
-    keep-alive-seconds: 60   # 线程空闲时间（秒）
-    thread-name-prefix: "file-upload-" # 线程名前缀，便于日志排查
 app:
   security:
     jwt-download-secret: "yXd3ecoPzJLfNvAI7Aq3ay9LPj4V2QxP9WSxJ1ZYDjt1i9gIkyUASsPd7rOOlpuPFeoeCirtvTjxJpbvVnuSaw=="
