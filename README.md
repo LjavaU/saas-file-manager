@@ -1,4 +1,4 @@
-::: {align="center"}
+
 
 # saas-file-manager
 
@@ -14,7 +14,6 @@ Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springb
 Cloud](https://img.shields.io/badge/Spring%20Cloud-2021.0.8-brightgreen?logo=spring)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-latest-blue?logo=postgresql)
 ![MinIO](https://img.shields.io/badge/MinIO-8.0.3-red?logo=minio)
-:::
 
 ------------------------------------------------------------------------
 
