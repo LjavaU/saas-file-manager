@@ -24,6 +24,8 @@ Cloud](https://img.shields.io/badge/Spring%20Cloud-2021.0.8-brightgreen?logo=spr
     upload (≤200MB), and multipart concurrent upload (\>200MB)
 -   **File Management** --- Folder tree structure, batch deletion, ZIP
     download, and share links
+-   **File Parse** --- Multi-format parsing (PDF/Word/Excel), state tracking, support for reparsing and re-indexing, 
+     and use LLMs for document business category recognition and automatic entity extraction
 -   **Multi-Tenant Isolation** --- Data isolation based on `tenant_id`,
     tenant context automatically propagated via HTTP headers
 -   **Microservice Integration** --- Integrates with LLM, Index,
