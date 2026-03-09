@@ -1,0 +1,6 @@
+FROM harbor.example.com/devops/openjdk11:jre-scex-X64_ARCH
+USER 1001:1001
+ARG JAR_FILE=${ROOT_JAR_PATH}target/MY_APP_SNAME-MY_JAR_PKG_VER.jar
+WORKDIR /home/scexrun
+ADD ${JAR_FILE} MY_APP_SNAME.jar
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=80.0", "-jar", "/home/scexrun/MY_APP_SNAME.jar"]

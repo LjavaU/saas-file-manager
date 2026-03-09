@@ -1,0 +1,16 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: saas-file
+
+sup:
+  swagger:
+    api-base-package: "com.example"
+    title: "saas-file"
+    description: "Neutralized File  Service"
+    version: "1.0.0-SNAPSHOT"
+
+mq:
+  file-parse-binding: saas.file.parse.parse

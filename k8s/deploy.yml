@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: MY_APP_LNAME
+  namespace: K8S_NAMESPACE
+  labels:
+    app: MY_APP_SNAME
+    appver: MY_APP_VER
+    env: MY_NS
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: MY_APP_SNAME
+      labels:
+        app: MY_APP_SNAME
+        appver: MY_APP_VER
+        env: MY_NS
+    spec:
+      nodeSelector:
+        kubernetes: devops
+      initContainers:
+        - name: obplog-unroot-tune
+          imagePullPolicy: IfNotPresent
+          image: 'harbor.example.com/devops/busybox:stable-glibc-IMAGE_ARCH'
+          command:
+            - chown
+            - -R
+            - 1001:1001
+            - /data/
+          volumeMounts:
+            - name: gpt-logs
+              mountPath: /data/
+      containers:
+        - name: MY_APP_SNAME
+          image: HARBOR_URL/HARBOR_NS/MY_APP_LNAME:IMAGE_TAG
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /actuator/health
+              port: APP_HTTP_PORT
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+            - name: server.port
+              value: 'APP_HTTP_PORT'
+            - name: spring.application.name
+              value: 'MY_APP_SNAME'
+            - name: spring.profiles.active
+              value: prod
+            - name: info.version
+              value: 'CI_PIPELINE_ID'
+            - name: spring.cloud.nacos.config.enabled
+              value: 'true'
+            - name: spring.cloud.nacos.config.server-addr
+              value: 'NACOS_ADDR'
+            - name: spring.cloud.nacos.config.file-extension
+              value: 'yaml'
+            - name: spring.cloud.nacos.config.group
+              value: 'NACOSGRP_NAME'
+            - name: spring.cloud.nacos.config.namespace
+              value: '610a0661-a48d-4a5b-9cd5-d5737cc8e1c5'
+            - name: spring.cloud.nacos.config.username
+              value: nacos
+            - name: spring.cloud.nacos.config.password
+              value: nacos
+          volumeMounts:
+            - mountPath: /data/
+              name: gpt-logs
+      volumes:
+        - name: gpt-logs
+          persistentVolumeClaim:
+            claimName: gpt-logs
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: MY_APP_SNAME
+      appver: MY_APP_VER
+      env: MY_NS
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: MY_APP_LNAME
+  namespace: K8S_NAMESPACE
+spec:
+  selector:
+    app: MY_APP_SNAME
+    appver: MY_APP_VER
+    env: MY_NS
+  ports:
+    - name: MY_APP_SNAME
+      port: APP_HTTP_PORT
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: MY_APP_SNAME
+  namespace: K8S_NAMESPACE
+spec:
+  selector:
+    app: MY_APP_SNAME
+    appver: MY_APP_VER
+    env: MY_NS
+  ports:
+    - name: MY_APP_SNAME
+      port: APP_HTTP_PORT
+  type: ClusterIP
