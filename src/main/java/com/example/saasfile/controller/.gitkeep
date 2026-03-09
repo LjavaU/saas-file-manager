@@ -1,0 +1,25 @@
+package com.example.saasfile.common.utils;
+
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
+
+import java.security.SecureRandom;
+
+public final class ShortIdGenerator {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    // 瀹氫箟鎴戜滑甯屾湜鍦↖D涓娇鐢ㄧ殑瀛楃闆?
+    private static final char[] ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
+    
+    /**
+     * 鐢熸垚涓€涓寚瀹氶暱搴︾殑銆乁RL瀹夊叏鐨勯殢鏈篒D
+     * @param length 鎺ㄨ崘 8 浣嶆垨浠ヤ笂
+     * @return 闅忔満ID瀛楃涓?
+     */
+    public static String generate(int length) {
+        return NanoIdUtils.randomNanoId(RANDOM, ALPHABET, length);
+    }
+    
+    public static void main(String[] args) {
+        System.out.println(generate(6));
+    }
+}

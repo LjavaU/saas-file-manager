@@ -1,0 +1,57 @@
+package com.example.saasfile.mapper;
+
+import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
+import com.example.saasfile.support.mybatis.IBaseMapper;
+import com.example.saasfile.dto.filerecommendation.FileRecommendationReq;
+import com.example.saasfile.dto.filerecommendation.FileRecommendationResp;
+import com.example.saasfile.entity.FileRecommendation;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+/**
+ * <p>
+ * 閺傚洣娆㈤幒銊ㄥ礃闂傤噣顣介悽鐔稿灇 Mapper 閹恒儱褰?
+ * </p>
+ *
+ * @author luhao
+ * @version 1.0.0
+ * @date 2025-08-04
+ */
+@Mapper
+public interface FileRecommendationMapper extends IBaseMapper<FileRecommendation> {
+    /**
+     * 閼惧嘲褰囬崗鎶芥暛鐠?
+     *
+     * @param req 鐠囬攱鐪版担?
+     * @return {@link String }
+     * @author luhao
+     * @since 2025/08/04 13:19:32
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("select id,tenant_id,file_id,keyword from file_recommendation where file_id = #{fileId} and tenant_id = #{tenantId}")
+    FileRecommendationResp getKeyWord(FileRecommendationReq req);
+
+    /**
+     * 閺囧瓨鏌婇弬鍥︽閹恒劏宕?
+     *
+     * @param fileRecommendation 閺傚洣娆㈤幒銊ㄥ礃
+     * @author luhao
+     * @since 2025/08/04 14:03:17
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("update file_recommendation set questions = #{questions},update_time = #{updateTime}  where id = #{id}")
+    void updateFileRecommend(FileRecommendation fileRecommendation);
+
+    /**
+     * 娣囨繂鐡ㄩ弬鍥︽閹恒劏宕?
+     *
+     * @param fileRecommendation 閺傚洣娆㈤幒銊ㄥ礃
+     * @author luhao
+     * @since 2025/08/04 14:03:19
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Insert("insert into file_recommendation (tenant_id,file_id,keyword,questions) values (#{tenantId},#{fileId},#{keyword},#{questions})")
+    void saveFileRecommend(FileRecommendation fileRecommendation);
+}

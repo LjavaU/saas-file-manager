@@ -1,0 +1,177 @@
+package com.example.saasfile.manager.strategy.impl;
+
+import com.google.common.collect.Sets;
+import com.example.saasfile.support.exception.ServerException;
+import com.example.saasfile.common.enums.FileCategory;
+import com.example.saasfile.common.enums.FileCategoryAbilityAssociation;
+import com.example.saasfile.common.enums.SubCategoryEnum;
+import com.example.saasfile.common.enums.TagHistoryCategory;
+import com.example.saasfile.common.utils.FileUtils;
+import com.example.saasfile.common.utils.MinioUtils;
+import com.example.saasfile.common.utils.ProcessProgressSupport;
+import com.example.saasfile.common.utils.RandomUtil;
+import com.example.saasfile.entity.FileObject;
+import com.example.saasfile.feign.LlmFeign;
+import com.example.saasfile.feign.entity.llm.FileClassifyReq;
+import com.example.saasfile.feign.entity.llm.FileClassifyResp;
+import com.example.saasfile.manager.strategy.FileAnalysisHandle;
+import com.example.saasfile.manager.strategy.KnowledgeFileHandleTemplate;
+import com.example.saasfile.service.IFileObjectService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.File;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Set;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class WordFileAnalysisHandle implements FileAnalysisHandle {
+    private final RestTemplate restTemplate = new RestTemplate();
+    private final IFileObjectService fileObjectService;
+    private final LlmFeign llmFeign;
+    private final KnowledgeFileHandleTemplate knowledgeFileHandleTemplate;
+
+    @Value("${service.llm.address:localhost}")
+    private String llmUrl;
+
+    private final MinioUtils minioUtils;
+
+    @Override
+    public void handleFileAnalysis(Long fileId,Integer category) {
+        FileObject fileObject = fileObjectService.getById(fileId);
+        if (Objects.isNull(fileObject)) {
+            log.error("word閺傚洣娆㈢憴锝嗙€芥潻鍥┾柤閿涘本鏋冩禒璁圭窗{}閻ㄥ嫯顔囪ぐ鏇氱瑝鐎涙ê婀?, fileId);
+            return;
+        }
+
+        // 闁氨鐓＄憴锝嗙€芥潻娑樺
+        Long userId = fileObject.getUserId();
+        ProcessProgressSupport.notifyParseProcessing(fileId, userId, RandomUtil.getRandomPercentage(5, 10));
+        // 娑撳﹣绱堕惌銉ㄧ槕鎼?
+        knowledgeFileHandleTemplate.uploadToKnowledgeBase(fileId, fileObject.getObjectName(), fileObject.getBucketName(), fileObject.getFileSize(), userId);
+        String objectName = fileObject.getObjectName();
+        String uniqueFilename = FileUtils.getFileNameFromObjectKey(objectName);
+        String originalName = fileObject.getOriginalName();
+        // TODO閿涙碍甯堕崚绉漮rd閺傚洣娆㈡径褍鐨?
+        if (fileObject.getFileSize() > 1024 * 1024 * 100) {
+            log.error("word閺傚洣娆㈡潻鍥с亣閿涘矁袙閺嬫劒鎹㈤崝锛勭矒濮?);
+            return;
+        }
+
+        File file = minioUtils.saveStreamToTempFile(fileObject.getBucketName(), objectName, uniqueFilename);
+        if (file == null) {
+            log.error("閸掓稑缂撴稉瀛樻閺傚洣娆㈡径杈Е閿涙}閿涘矁袙閺嬫劒鎹㈤崝锛勭矒濮?, originalName);
+            throw new ServerException("娑撳瓨妞傞弬鍥︽" + originalName + "娣囨繂鐡ㄦ径杈Е");
+        }
+        ResponseEntity<byte[]> responseEntity;
+        try {
+            responseEntity = callLlmApiWithFile(file);
+        } catch (Exception e) {
+            log.error("鐠嬪啰鏁lm閹恒儱褰涢敍姝沺i/file/convert鐠佸潡妫堕崙娲晩 ", e);
+            return;
+        } finally {
+            FileUtils.deleteTemporaryFile(file, originalName);
+        }
+        if (responseEntity != null) {
+            if (!responseEntity.getStatusCode().is2xxSuccessful() || responseEntity.getBody() == null) {
+                log.error("{}閺傚洣娆㈢拫鍐暏py閹恒儱褰涙潪顒佸床markdown閺堝顕?, originalName);
+                return;
+            }
+            byte[] fileBytes = responseEntity.getBody();
+            // 2. 绾喖鐣剧€涙顑佺紓鏍垳
+            Charset charset = getCharsetFromResponse(responseEntity);
+            // 3. 娴ｈ法鏁ょ涵顔肩暰閻ㄥ嫮绱惍浣哥殺鐎涙濡弫鎵矋鏉烆剚宕叉稉鍝勭摟缁楋缚瑕?
+            String content = new String(fileBytes, charset);
+            analysis(content, fileId, originalName);
+        }
+
+    }
+
+    private void analysis(String content, Long fileId, String originalName) {
+        final int segmentSize = 1024;
+        String headMarkdownContent = content.substring(0, Math.min(segmentSize, content.length()));
+        FileClassifyResp classifyResp = llmFeign.classify(FileClassifyReq.builder()
+            .headMarkdownContent(headMarkdownContent)
+            .documentType("doc")
+            .build());
+        if (Objects.isNull(classifyResp)) {
+            log.warn("閺傚洣娆㈤敍姝縸閿涘LM閸掑棛琚径杈Е", originalName);
+            throw new ServerException("閺傚洣娆㈤崚鍡欒婢惰精瑙?);
+
+        }
+        updateFileParseMetadata(fileId, FileCategory.getValueByCode(classifyResp.getCategory()), classifyResp.getSummary(), classifyResp.getSubcategory(), classifyResp.getThird_level_category());
+    }
+
+    private void updateFileParseMetadata(Long fileId, String category, String summary, Integer subcategory, Integer thirdLevelCategory) {
+        FileObject fileObject = new FileObject();
+        fileObject.setId(fileId);
+        fileObject.setCategory(category);
+        fileObject.setContentOverview(summary);
+        fileObject.setSubCategory(String.valueOf(subcategory));
+        if (thirdLevelCategory != -1) {
+            fileObject.setThirdLevelCategory(String.valueOf(thirdLevelCategory));
+            fileObject.setAbility(FileCategoryAbilityAssociation.getAbilityByTagHistoryCategory(TagHistoryCategory.getByCode(thirdLevelCategory)));
+        } else {
+            fileObject.setAbility(FileCategoryAbilityAssociation.getAbilityBySubCategory(SubCategoryEnum.getByCode(subcategory)));
+        }
+        fileObjectService.updateById(fileObject);
+    }
+
+
+    /**
+     * 娴犲订TTP閸濆秴绨叉径缈犺厬鐟欙絾鐎紺ontent-Type娴犮儴骞忛崣鏍х摟缁楋箓娉﹂妴?
+     *
+     * @param responseEntity 閸濆秴绨茬€圭偘缍?
+     * @return 鐟欙絾鐎介崙铏规畱鐎涙顑侀梿鍡礉婵″倹鐏夐張顏呭瘹鐎规艾鍨妯款吇娑撶TF-8
+     */
+    private Charset getCharsetFromResponse(ResponseEntity<?> responseEntity) {
+        MediaType contentType = responseEntity.getHeaders().getContentType();
+        if (contentType != null && contentType.getCharset() != null) {
+            return contentType.getCharset();
+        }
+        // 婵″倹鐏夐崫宥呯安婢跺瓨鐥呴張澶嬪瘹鐎规氨绱惍渚婄礉閹绘劒绶垫稉鈧稉顏勭暔閸忋劌褰查棃鐘垫畱姒涙顓婚崐?
+        return StandardCharsets.UTF_8;
+    }
+
+    @Override
+    public Set<String> getSupportedTypes() {
+        return Sets.newHashSet("doc", "docx");
+    }
+
+
+    public ResponseEntity<byte[]> callLlmApiWithFile(File file) {
+        String url = llmUrl + "/api/file/convert";
+        // 1. 鐠佸墽鐤嗙拠閿嬬湴婢?
+        HttpHeaders headers = new HttpHeaders();
+        // 閹稿洤鐣鹃崘鍛啇缁鐎锋稉?multipart/form-data
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        // 閺嬪嫬缂撶拠閿嬬湴娴?(Body)
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+
+        // 鐏忓棙鏋冩禒璺哄瘶鐟佸懏鍨?FileSystemResource
+        body.add("file", new FileSystemResource(file));
+
+        // 閸掓稑缂撶€瑰本鏆ｉ惃鍑tpEntity
+        // HttpEntity 鐏忎浇顥婃禍鍡氼嚞濮瑰倸銇旈崪宀冾嚞濮瑰倷缍?
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        return restTemplate.postForEntity(url, requestEntity, byte[].class);
+
+
+    }
+}
