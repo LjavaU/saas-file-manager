@@ -8,9 +8,9 @@ spring:
 sup:
   swagger:
     api-base-package: "com.example"
-    title: "saas-file"
-    description: "Neutralized File  Service"
-    version: "1.0.0-SNAPSHOT"
+    title: "saas-file-manager"
+    description: "Enterprise multi-tenant SaaS file management microservice"
+    version: "0.1.0"
 
 mq:
   file-parse-binding: saas.file.parse.parse

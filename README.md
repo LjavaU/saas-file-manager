@@ -4,16 +4,17 @@ Enterprise multi-tenant SaaS file management microservice built with Spring Boot
 
 This project provides reusable backend infrastructure for SaaS and knowledge-base systems that need secure file upload, object storage, parsing workflows, indexing integration, and tenant-aware data isolation.
 
-![Java](https://img.shields.io/badge/Java-11-orange?logo=openjdk)
+![Java](https://img.shields.io/badge/Java-8%2B-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen?logo=springboot)
 ![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2021.0.8-brightgreen?logo=spring)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-latest-blue?logo=postgresql)
 ![MinIO](https://img.shields.io/badge/MinIO-8.0.3-red?logo=minio)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+[![CI](https://github.com/LjavaU/saas-file-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/LjavaU/saas-file-manager/actions/workflows/ci.yml)
 
 ## Project Status
 
-The repository is public and maintained by the primary maintainer. It is currently an early-stage OSS infrastructure project, with the core file-management service, local setup instructions, Docker/Kubernetes deployment assets, and database migration structure already available.
+The repository is public and maintained by the primary maintainer. It is currently an early-stage OSS infrastructure project, with the core file-management service, local setup instructions, Docker/Docker Compose/Kubernetes deployment assets, CI, unit tests, and database migration structure already available.
 
 The next maintenance priorities are tracked in [ROADMAP.md](ROADMAP.md): test coverage, API examples, release automation, security hardening, and clearer extension points for LLM-based document classification and entity extraction.
 
@@ -67,7 +68,7 @@ src/main/java/com/example/saasfile/
 
 ### Prerequisites
 
-- Java 11+
+- Java 8+
 - Maven 3.6+
 - PostgreSQL
 - Redis
@@ -113,6 +114,34 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 
 ```text
 http://localhost:8088/doc.html
+```
+
+### Run Dependencies with Docker Compose
+
+Start PostgreSQL, Redis, and MinIO for local development:
+
+```bash
+docker compose up -d postgres redis minio minio-init
+```
+
+To build and run the application container as well:
+
+```bash
+docker compose --profile app up --build
+```
+
+The MinIO console is available at:
+
+```text
+http://localhost:9001
+```
+
+Default local credentials are for development only and should be changed for any shared environment.
+
+### Run Tests
+
+```bash
+mvn test
 ```
 
 ## Port Information
@@ -163,7 +192,7 @@ Base URL: `/open-api/file`
 ### Docker
 
 ```bash
-docker build -f Dockerfile.x64 -t saas-file-manager:latest .
+docker build -t saas-file-manager:latest .
 docker run -p 8088:8088 saas-file-manager:latest
 ```
 

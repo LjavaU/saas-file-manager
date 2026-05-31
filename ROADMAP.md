@@ -8,13 +8,14 @@ This roadmap keeps the public maintenance direction visible for contributors and
 - Document security reporting and review priorities.
 - Improve README structure, setup instructions, and API endpoint overview.
 - Add issue templates for bug reports and feature requests.
+- Add initial CI, unit tests, and Docker Compose local dependencies.
 
 ## v0.2 - Reliability and Tests
 
 - Add unit tests for upload initialization, multipart signing, completion, and metadata updates.
 - Add service-level tests for folder operations, batch deletion, share links, and tenant-aware queries.
 - Add integration-test documentation for PostgreSQL, Redis, and MinIO.
-- Add CI workflow for build and tests.
+- Expand CI to include Docker image build validation.
 
 ## v0.3 - Security Hardening
 
@@ -34,6 +35,5 @@ This roadmap keeps the public maintenance direction visible for contributors and
 ## v0.5 - Release and Deployment Quality
 
 - Publish tagged releases with release notes.
-- Add Docker Compose examples for local development dependencies.
 - Improve Kubernetes manifests and configuration examples.
 - Add production deployment checklist.
